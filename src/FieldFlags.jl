@@ -21,7 +21,7 @@ function cast_extend_truncate(T::DataType, x)
         # than to describe that value as a shift
         Core.Intrinsics.trunc_int(T, x) 
     else # ==
-        # no extension/truncation needed
+        # no extension/truncation needed, just bitcast
         Core.Intrinsics.bitcast(T, x)
     end
 end
@@ -31,7 +31,7 @@ function flaggify(expr::Expr)
     typename = expr.args[2]
     T = esc(typename)
     fields = identity.(filter(s -> s isa Symbol, expr.args[3].args))
-    isempty(fields) && throw(ArgumentError("Need at least  one field."))
+    isempty(fields) && throw(ArgumentError("`@flaggify` needs at least one field."))
     # TODO: Give a better error here, showing which fields are duplicated
     allunique(fields) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
     nfields = length(fields)
@@ -45,18 +45,15 @@ function flaggify(expr::Expr)
         primitive type $T $typesize end
     )
 
-    for (i,f) in enumerate(fields)
-    end
-
     # make the properties accessible
     fieldtuple = ntuple(x -> fields[x], length(fields))
     typefuncs = :(
-        $Base.propertynames(x::$T) = $fieldtuple
+        Base.propertynames(x::$T) = $fieldtuple
     )
 
     # prepare our `getproperty` overload
     getprop = :(
-        function $Base.getproperty(x::$T, s::$Symbol)
+        function Base.getproperty(x::$T, s::Symbol)
             s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
             maskbase = cast_or_extend($T, 0x1)
             zero = cast_or_extend($T, 0x0)
@@ -77,21 +74,23 @@ function flaggify(expr::Expr)
 
         # name argument `f::Bool`
         push!(callargs, Expr(:(::), f, :Bool))
-        cast_f = Symbol(f, :_)
-        push!(bodyargs, :(
+        cast_f = Symbol(f, :_cast)
+        shift_f = Symbol(f, :_shift)
+        body = :(
             # shift argument into the correct field position
-            $cast_f = cast_or_extend($T, $f)
-            shift = cast_extend_truncate($T, $(i-1))
-            $cast_f = $Core.Intrinsics.shl_int($cast_f, shift)
+            $cast_f = cast_or_extend($T, $f);
+            $shift_f = cast_extend_truncate($T, $shiftbase);
+            $cast_f = Core.Intrinsics.shl_int($cast_f, $shift_f);
             # `or` it into the result
-            ret = $Core.Intrinsics.or_int(ret, $cast_f)
-        ))
+            ret = Core.Intrinsics.or_int(ret, $cast_f)
+        )
+        push!(bodyargs, body)
 
         ifexpr = :(
             if s === $(QuoteNode(f)) # interpolate the literal symbol
-                shift = cast_extend_truncate($T, shiftbase)
-                mask = $Core.Intrinsics.shl_int(maskbase, shift)
-                val = $Core.Intrinsics.and_int(x, mask)
+                shift = cast_extend_truncate($T, $shiftbase)
+                mask = Core.Intrinsics.shl_int(maskbase, shift)
+                val = Core.Intrinsics.and_int(x, mask)
                 return Core.Intrinsics.ne_int(val, zero)
             end
         )
