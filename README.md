@@ -5,8 +5,8 @@ This package provides a tiny macro to create bitfield-like objects. For example:
 ```julia
 @flaggify struct MyFlags
     flag_a
-	flag_b
-	flag_c
+    flag_b
+    flag_c
 end
 ```
 
@@ -18,7 +18,7 @@ This may change in the future, but apart from that, the sky is the (literal) lim
 
 The above object can be accessed like any other struct:
 
-```julia-repl
+```julia
 julia> using FieldFlags
 
 julia> @flaggify struct Foo
@@ -47,7 +47,7 @@ true
 
 and gives errors when a field that doesn't exist is accessed:
 
-```julia-repl
+```julia
 julia> f.z
 ERROR: ArgumentError: Objects of type `Foo` have no field `z`
 Stacktrace:
@@ -59,7 +59,7 @@ Stacktrace:
 
 as well as when the given struct either doesn't have any fields, or has duplicates:
 
-```julia-repl
+```julia
 julia> @flaggify struct Foo
        end
 ERROR: LoadError: ArgumentError: `@flaggify` needs at least one field.
@@ -85,7 +85,7 @@ in expression starting at REPL[4]:1
 
 Nevertheless, `getproperty` is implemented with efficiency in mind:
 
-```julia-repl
+```julia
 julia> foo(f) = f.a
 foo (generic function with 1 method)
 
@@ -104,7 +104,7 @@ top:
 so no error paths survive during optimization (if the compiler can constant propagate the property access)
 and keeps being efficient for even large structs:
 
-```julia-repl
+```julia
 julia> @flaggify struct Foo3
            a
            b
@@ -134,6 +134,9 @@ julia> @flaggify struct Foo3
 
 julia> f = Foo3(rand(Bool, 24)...)
 Foo3(0x1a1f65)
+
+julia> foo(f) = f.w
+foo (generic function with 1 method)
 
 julia> @code_llvm foo(f)
 ;  @ REPL[12]:1 within `foo`
