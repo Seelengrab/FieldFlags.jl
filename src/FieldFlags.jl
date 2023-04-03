@@ -42,13 +42,13 @@ function flaggify(expr::Expr)
     nbytes = (d + (r != 0))
     typesize  = nbytes * 8
     typedef = :(
-        primitive type $T $typesize end
+        primitive type $typename $typesize end
     )
 
     # make the properties accessible
     fieldtuple = ntuple(x -> fields[x], length(fields))
     typefuncs = :(
-        Base.propertynames(x::$T) = $fieldtuple
+        Base.propertynames(_::$T) = $fieldtuple
     )
 
     # prepare our `getproperty` overload
@@ -73,7 +73,7 @@ function flaggify(expr::Expr)
         shiftbase = i-1
 
         # name argument `f::Bool`
-        push!(callargs, Expr(:(::), f, :Bool))
+        push!(callargs, Expr(:(::), f, Bool))
         cast_f = Symbol(f, :_cast)
         shift_f = Symbol(f, :_shift)
         body = :(
