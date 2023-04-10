@@ -1,20 +1,20 @@
 module FieldFlags
 
-export @flaggify, @bitfieldify, propertyoffset, propertysize
+export @flaggify, @bitfieldify
 
 """
-  propertyoffset(x, s::Symbol)
+   propertyoffset(::Type{T}, s::Symbol)
 
-Gives the offset (in bits) of the property `s` in the object `x`. Similar to `fieldoffset`.
+Gives the offset (in bits) the field `s` is placed at in objects of type `T`.
 """
 function propertyoffset end
 
 """
-   propertysyize(x, s::Symbol)
+   fieldsize(::Type{T}, s::Symbol)
 
-Gives the size (in bits) the property `s` takes up in the object `x`. Similar to `fieldsize`.
+Gives the size (in bits) the field `s` takes up in objects of type `T`.
 """
-function propertysize end
+function fieldsize end
 
 function cast_or_extend(T::DataType, x::Union{UInt8, Bool})
     if sizeof(T) === 1
@@ -29,10 +29,10 @@ function cast_extend_truncate(T::DataType, x)
         # zero extension is always fine
         Core.Intrinsics.zext_int(T, x)
     elseif sizeof(x) > sizeof(T)
-        # safe, due to x being limited to nfields
-        # since one bit in T is equal to a field, extending x to that
-        # length means it will always take more bits to have a value of that size
-        # than to describe that value as a shift
+        # we can't do anything other than truncating here
+        # we need at least sizeof(T) bits in x to represent
+        # all shifts/offsets we can think of - larger stuff
+        # is swallowed
         Core.Intrinsics.trunc_int(T, x) 
     else # ==
         # no extension/truncation needed, just bitcast
@@ -60,17 +60,15 @@ function bitfieldify(expr::Expr)
         numbits += fieldsize
         push!(fields, fieldname => fieldsize)
     end
-
     fieldtuple = ntuple(x -> first(fields[x]), length(fields))
     isempty(fieldtuple) && throw(ArgumentError("`@bitfieldify` needs at least one field."))
     # TODO: Give a better error here, showing which fields are duplicated
     allunique(fieldtuple) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
 
-    nfields = length(fields)
     # `primitive type` currently requires a multiple of 8
     # also makes accessing the bits later easier
     # don't want to oversize when we have exactly 8,16,.. fields
-    typesize = 8*div(nfields, 8, RoundUp)
+    typesize = 8*div(numbits, 8, RoundUp)
 
     # This primitive type is intentionally not an Integer
     # It's a composite type, there is no arithmetic here
@@ -88,32 +86,31 @@ function bitfieldify(expr::Expr)
 
     # make the properties accessible
     typefuncs = :(
-        Base.propertynames(_::$T) = $fieldtuple
+        Base.propertynames(::$T) = $fieldtuple;
+        Base.fieldnames(_::Type{$Ti}) = $fieldtuple
     )
 
     # prepare our `getproperty` overload
     propsize = :(
-        function FieldFlags.propertysize(x::$T, s::Symbol)
-            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
-            data = getfield(x, :fields)
+        function FieldFlags.fieldsize(_::Type{$Ti}, s::Symbol)
+            s ∈ fieldnames($Ti) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
         end
     )
     propoffset = :(
-        function FieldFlags.propertyoffset(x::$T, s::Symbol)
-            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
-            data = getfield(x, :fields)
+        function FieldFlags.propertyoffset(_::Type{$Ti}, s::Symbol)
+            s ∈ fieldnames($Ti) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
         end
     )
     getprop = :(
         function Base.getproperty(x::$T, s::Symbol)
-            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
+            s ∈ fieldnames($Ti) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
             data = getfield(x, :fields)
             maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
         end
     )
     setprop = :(
         function Base.setproperty!(x::$T, s::Symbol, v::W) where W
-            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
+            s ∈ fieldnames($T) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
             maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
             maskeddata = v & ~(~zero(W) << propertysize(x, s))
             val = cast_extend_truncate($Ti, maskeddata)
@@ -139,9 +136,9 @@ function bitfieldify(expr::Expr)
         )
         getpropexpr = :(
             if s === $(QuoteNode(fieldname))
-                offsetshift = cast_extend_truncate($Ti, propertyoffset(x, s))
+                offsetshift = cast_extend_truncate($Ti, propertyoffset($Ti, s))
                 shifted = Core.Intrinsics.lshr_int(data, offsetshift)
-                maskshift = cast_extend_truncate($Ti, propertysize(x, s))
+                maskshift = cast_extend_truncate($Ti, fieldsize($Ti, s))
                 mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, maskshift))
                 masked = Core.Intrinsics.and_int(shifted, mask)
                 return cast_extend_truncate(UInt, masked)
@@ -149,10 +146,10 @@ function bitfieldify(expr::Expr)
         )
         setpropexpr = :(
             if s === $(QuoteNode(fieldname))
-                offsetshift = cast_extend_truncate($Ti, propertyoffset(x, s))
+                offsetshift = cast_extend_truncate($Ti, propertyoffset($Ti, s))
                 shifted = Core.Intrinsics.shl_int(val, offsetshift)
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, propertysize(x, s)))
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, propertyoffset(x, s)))
+                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, fieldsize($Ti, s)))
+                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, propertyoffset($Ti, s)))
                 cleareddata = Core.Intrinsics.and_int(getfield(x, :fields), mask)
                 newdata = Core.Intrinsics.or_int(cleareddata, shifted)
                 setfield!(x, :fields, newdata)
@@ -164,12 +161,12 @@ function bitfieldify(expr::Expr)
         push!(callargs, Expr(:(::), fieldname, Base.BitInteger))
         cast_f = Symbol(fieldname, :_cast)
         shift_f = Symbol(fieldname, :_shift)
+        mask_f = Symbol(fieldname, :_mask)
         body = :(
             # shift argument into the correct field position
-            # TODO: build second constructor
-            $fieldname = 
-            $cast_f = cast_or_extend($T, $fieldname);
-            $shift_f = cast_extend_truncate($T, propertyoffset(x, s));
+            $mask_f = $fieldname & ~((~zero($fieldname)) << fieldsize($Ti, $(QuoteNode(fieldname))));
+            $cast_f = cast_extend_truncate($Ti, $mask_f);
+            $shift_f = cast_extend_truncate($Ti, propertyoffset($Ti, $(QuoteNode(fieldname))));
             $cast_f = Core.Intrinsics.shl_int($cast_f, $shift_f);
             # `or` it into the result
             ret = Core.Intrinsics.or_int(ret, $cast_f)
@@ -183,13 +180,13 @@ function bitfieldify(expr::Expr)
         push!(setprop.args[2].args, setpropexpr)
     end
     mutstruct = last(typedefs.args)
-    push!(bodyargs, :(return new(ret)))
+    push!(bodyargs, Expr(:return, Expr(:call, :new, :ret)))
     push!(getprop.args[2].args, :(return zero(UInt))) # never hit, only for type stability
     push!(setprop.args[2].args, :(return zero(W))) # never hit, only for type stability
     call = Expr(:call, callargs...)
     block = Expr(:block, bodyargs...)
     constr = Expr(:function, call, block)
-    push!(mutstruct.args, constr)
+    push!(mutstruct.args[3].args, constr)
 
     ###
 
