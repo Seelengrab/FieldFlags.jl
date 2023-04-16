@@ -63,27 +63,42 @@ end
 end
 end # end @bitflags
 @testset "@bitfields" begin
+@testset "non-pow-2 size" begin
+    @bitfield struct NonPow2
+        f:24
+    end
+    # This REALLY ought not to be how this works...
+    if Sys.WORD_SIZE > 24
+        @test 8*sizeof(NonPow2) == nextpow(2, 24)
+    else
+        @test 8*sizeof(NonPow2) == nextpow(Sys.WORD_SIZE, 24)
+    end
+end
 @testset for nfields in (7,8,9)
-    fields = pos_fields[1:nfields]
+    fields = [ :($p:$n) for (n,p) in zip(shuffle(rand(2:4, nfields)), pos_fields[1:nfields]) ]
     name = Symbol("struct_" * randstring(5) * string(nfields))
     :(
-        @bitflags struct $name
+        @bitfield struct $name
             $(fields...)
         end
     ) |> eval
 
     args = rand(Bool, nfields)
     obj = eval(:($name($(args...))))
-    @test sizeof(obj) == ceil(Int, nfields/8)
+    sumfields = sum(x -> x.args[3], fields)
+    @test sizeof(getfield(obj, :fields)) == div(sumfields, 8, RoundUp)
     # these two should always pass/fail together
     @test !hasproperty(obj, :dummy)
     @test_throws ArgumentError("Objects of type `$name` have no field `dummy`") getproperty(obj, :dummy)
 
-    @test propertynames(obj) == fields
+    @test propertynames(obj) == ntuple(f -> fields[f].args[2], nfields)
     @testset for f in 1:nfields
         # these two should always pass/fail together
-        @test hasproperty(obj, fields[f])
-        @test getproperty(obj, fields[f]) == args[f]
+        @test hasproperty(obj, fields[f].args[2])
+        @test getproperty(obj, fields[f].args[2]) == args[f]
+        rand_set = rand(Bool)
+        @test setproperty!(obj, fields[f].args[2], rand_set) == rand_set
+        @test getproperty(obj, fields[f].args[2]) == rand_set
     end
 end
 @testset "Empty fields" begin

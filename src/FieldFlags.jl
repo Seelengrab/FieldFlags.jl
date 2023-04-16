@@ -87,33 +87,32 @@ function bitfield(expr::Expr)
     # make the properties accessible
     filterednames = filter(!=(:_), fieldtuple)
     typefuncs = :(
-        Base.propertynames(::$T) = $filterednames;
-        Base.fieldnames(_::Type{$Ti}) = $filterednames
+        Base.propertynames(::$T) = $filterednames
     )
 
     # prepare our `getproperty` overload
     propsize = :(
         function FieldFlags.fieldsize(_::Type{$Ti}, s::Symbol)
-            s ∈ fieldnames($Ti) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
+            s ∈ $filterednames || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
         end
     )
     propoffset = :(
         function FieldFlags.propertyoffset(_::Type{$Ti}, s::Symbol)
-            s ∈ fieldnames($Ti) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
+            s ∈ $filterednames || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
         end
     )
     getprop = :(
         function Base.getproperty(x::$T, s::Symbol)
-            s ∈ fieldnames($Ti) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
+            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
             data = getfield(x, :fields)
             maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
         end
     )
     setprop = :(
         function Base.setproperty!(x::$T, s::Symbol, v::W) where W
-            s ∈ fieldnames($T) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
+            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
             maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
-            maskeddata = v & ~(~zero(W) << propertysize(x, s))
+            maskeddata = v & ~(~zero(W) << fieldsize($Ti, s))
             val = cast_extend_truncate($Ti, maskeddata)
         end
     )
