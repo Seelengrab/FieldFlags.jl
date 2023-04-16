@@ -1,6 +1,6 @@
 module FieldFlags
 
-export @flaggify, @bitfieldify
+export @bitflags, @bitfield
 
 """
    propertyoffset(::Type{T}, s::Symbol)
@@ -40,10 +40,10 @@ function cast_extend_truncate(T::DataType, x)
     end
 end
 
-# TODO: There is a lot of overlap between `flaggify` and `bitfieldify`, so consider merging these later
+# TODO: There is a lot of overlap between `bitflags` and `bitfields`, so consider merging these later
 
-function bitfieldify(expr::Expr)
-    expr.head == :struct || throw(ArgumentError("`@bitfieldify` needs a struct definition!"))
+function bitfield(expr::Expr)
+    expr.head == :struct || throw(ArgumentError("`@bitfields` needs a struct definition!"))
     typename = expr.args[2]
     typename_internal = Symbol(typename, :_fields)
     T = esc(typename)
@@ -61,9 +61,9 @@ function bitfieldify(expr::Expr)
         push!(fields, fieldname => fieldsize)
     end
     fieldtuple = ntuple(x -> first(fields[x]), length(fields))
-    isempty(fieldtuple) && throw(ArgumentError("`@bitfieldify` needs at least one field."))
+    isempty(fieldtuple) && throw(ArgumentError("`@bitfields` needs at least one field."))
     # TODO: Give a better error here, showing which fields are duplicated
-    allunique(fieldtuple) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
+    allunique(filter(!=(:_), fieldtuple)) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
 
     # `primitive type` currently requires a multiple of 8
     # also makes accessing the bits later easier
@@ -85,9 +85,10 @@ function bitfieldify(expr::Expr)
     )
 
     # make the properties accessible
+    filterednames = filter(!=(:_), fieldtuple)
     typefuncs = :(
-        Base.propertynames(::$T) = $fieldtuple;
-        Base.fieldnames(_::Type{$Ti}) = $fieldtuple
+        Base.propertynames(::$T) = $filterednames;
+        Base.fieldnames(_::Type{$Ti}) = $filterednames
     )
 
     # prepare our `getproperty` overload
@@ -124,6 +125,8 @@ function bitfieldify(expr::Expr)
     push!(bodyargs, :(ret = cast_or_extend($Ti, 0x0)))
     running_offset = 0
     for (fieldname,fieldsize) in fields
+        # TODO: Invent some way to get an integer type of the correct bitsize without `@eval`, like Zigs' iX
+        casttype = isone(fieldsize) ? Bool : UInt
         sizeexpr = :(
             if s === $(QuoteNode(fieldname))
                 return $fieldsize
@@ -134,6 +137,9 @@ function bitfieldify(expr::Expr)
                 return $running_offset
             end
         )
+        running_offset += fieldsize
+        fieldname === :_ && continue
+
         getpropexpr = :(
             if s === $(QuoteNode(fieldname))
                 offsetshift = cast_extend_truncate($Ti, propertyoffset($Ti, s))
@@ -141,7 +147,7 @@ function bitfieldify(expr::Expr)
                 maskshift = cast_extend_truncate($Ti, fieldsize($Ti, s))
                 mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, maskshift))
                 masked = Core.Intrinsics.and_int(shifted, mask)
-                return cast_extend_truncate(UInt, masked)
+                return cast_extend_truncate($casttype, masked)
             end
         )
         setpropexpr = :(
@@ -158,7 +164,7 @@ function bitfieldify(expr::Expr)
         )
         
         # constructor args
-        push!(callargs, Expr(:(::), fieldname, Base.BitInteger))
+        push!(callargs, Expr(:(::), fieldname, Union{Bool, Base.BitInteger}))
         cast_f = Symbol(fieldname, :_cast)
         shift_f = Symbol(fieldname, :_shift)
         mask_f = Symbol(fieldname, :_mask)
@@ -173,7 +179,6 @@ function bitfieldify(expr::Expr)
         )
         push!(bodyargs, body)
 
-        running_offset += fieldsize
         push!(propsize.args[2].args, sizeexpr)
         push!(propoffset.args[2].args, offsetexpr)
         push!(getprop.args[2].args, getpropexpr)
@@ -200,22 +205,22 @@ function bitfieldify(expr::Expr)
     )
 end
 
-macro bitfieldify(expr::Expr)
-    bitfieldify(expr)
+macro bitfield(expr::Expr)
+    bitfield(expr)
 end
 
 #####
 # Flagstructs
 #####
 
-function flaggify(expr::Expr)
-    expr.head == :struct || throw(ArgumentError("`@flaggify` needs a struct definition!"))
+function bitflags(expr::Expr)
+    expr.head == :struct || throw(ArgumentError("`@bitflags` needs a struct definition!"))
     typename = expr.args[2]
     T = esc(typename)
     fields = identity.(filter(s -> s isa Symbol, expr.args[3].args))
-    isempty(fields) && throw(ArgumentError("`@flaggify` needs at least one field."))
+    isempty(fields) && throw(ArgumentError("`@bitflags` needs at least one field."))
     # TODO: Give a better error here, showing which fields are duplicated
-    allunique(fields) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
+    allunique(filter(!=(:_), fields)) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
     nfields = length(fields)
     # `primitive type` currently requires a multiple of 8
     # also makes accessing the bits later easier
@@ -227,8 +232,9 @@ function flaggify(expr::Expr)
 
     # make the properties accessible
     fieldtuple = ntuple(x -> fields[x], length(fields))
+    filterednames = filter(!=(:_), fieldtuple)
     typefuncs = :(
-        Base.propertynames(_::$T) = $fieldtuple
+        Base.propertynames(_::$T) = $filterednames
     )
 
     # prepare our `getproperty` overload
@@ -250,6 +256,7 @@ function flaggify(expr::Expr)
     # and generate the conversion in the constructor as well
     funcblock = getprop.args[2].args
     for (i,f) in enumerate(fields)
+        f === :_ && continue
         shiftbase = i-1
 
         # name argument `f::Bool`
@@ -291,8 +298,8 @@ function flaggify(expr::Expr)
     )
 end
 
-macro flaggify(expr)
-    flaggify(expr)
+macro bitflags(expr)
+    bitflags(expr)
 end
 
 end # module FieldFlags
