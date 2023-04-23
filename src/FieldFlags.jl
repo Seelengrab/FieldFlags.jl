@@ -92,12 +92,12 @@ function bitfield(expr::Expr)
 
     # prepare our `getproperty` overload
     propsize = :(
-        function FieldFlags.fieldsize(_::Type{$Ti}, s::Symbol)
+        function FieldFlags.fieldsize(_::Type{$T}, s::Symbol)
             s ∈ $filterednames || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
         end
     )
     propoffset = :(
-        function FieldFlags.propertyoffset(_::Type{$Ti}, s::Symbol)
+        function FieldFlags.propertyoffset(_::Type{$T}, s::Symbol)
             s ∈ $filterednames || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
         end
     )
@@ -112,7 +112,7 @@ function bitfield(expr::Expr)
         function Base.setproperty!(x::$T, s::Symbol, v::W) where W
             s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
             maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
-            maskeddata = v & ~(~zero(W) << fieldsize($Ti, s))
+            maskeddata = v & ~(~zero(W) << fieldsize($T, s))
             val = cast_extend_truncate($Ti, maskeddata)
         end
     )
@@ -141,9 +141,9 @@ function bitfield(expr::Expr)
 
         getpropexpr = :(
             if s === $(QuoteNode(fieldname))
-                offsetshift = cast_extend_truncate($Ti, propertyoffset($Ti, s))
+                offsetshift = cast_extend_truncate($Ti, propertyoffset($T, s))
                 shifted = Core.Intrinsics.lshr_int(data, offsetshift)
-                maskshift = cast_extend_truncate($Ti, fieldsize($Ti, s))
+                maskshift = cast_extend_truncate($Ti, fieldsize($T, s))
                 mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, maskshift))
                 masked = Core.Intrinsics.and_int(shifted, mask)
                 return cast_extend_truncate($casttype, masked)
@@ -151,10 +151,10 @@ function bitfield(expr::Expr)
         )
         setpropexpr = :(
             if s === $(QuoteNode(fieldname))
-                offsetshift = cast_extend_truncate($Ti, propertyoffset($Ti, s))
+                offsetshift = cast_extend_truncate($Ti, propertyoffset($T, s))
                 shifted = Core.Intrinsics.shl_int(val, offsetshift)
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, fieldsize($Ti, s)))
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, propertyoffset($Ti, s)))
+                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, fieldsize($T, s)))
+                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, propertyoffset($T, s)))
                 cleareddata = Core.Intrinsics.and_int(getfield(x, :fields), mask)
                 newdata = Core.Intrinsics.or_int(cleareddata, shifted)
                 setfield!(x, :fields, newdata)
@@ -169,9 +169,9 @@ function bitfield(expr::Expr)
         mask_f = Symbol(fieldname, :_mask)
         body = :(
             # shift argument into the correct field position
-            $mask_f = $fieldname & ~((~zero($fieldname)) << fieldsize($Ti, $(QuoteNode(fieldname))));
+            $mask_f = $fieldname & ~((~zero($fieldname)) << fieldsize($T, $(QuoteNode(fieldname))));
             $cast_f = cast_extend_truncate($Ti, $mask_f);
-            $shift_f = cast_extend_truncate($Ti, propertyoffset($Ti, $(QuoteNode(fieldname))));
+            $shift_f = cast_extend_truncate($Ti, propertyoffset($T, $(QuoteNode(fieldname))));
             $cast_f = Core.Intrinsics.shl_int($cast_f, $shift_f);
             # `or` it into the result
             ret = Core.Intrinsics.or_int(ret, $cast_f)
