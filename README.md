@@ -1,9 +1,9 @@
 # FlagFields.jl
 
-This package provides a tiny macro to create bitfield-like objects. For example:
+This package provides two tiny macros to create bitfield-like objects. For example:
 
 ```julia
-@flaggify struct MyFlags
+@bitflags struct MyFlags
     flag_a
     flag_b
     flag_c
@@ -12,7 +12,7 @@ end
 
 creates a new type `MyFlags`, which stores the boolean flags `flag_a`, `flag_b` and `flag_c` as its fields
 in a compressed format. Due to compiler limitations, `MyFlags` is 1 byte large instead of 3 bits. All
-structs created by `@flaggify` are a multiple of 8 bits large.
+structs created by `@bitflags` are a multiple of 8 bits large.
 
 This may change in the future, but apart from that, the sky is the (literal) limit!
 
@@ -21,7 +21,7 @@ The above object can be accessed like any other struct:
 ```julia
 julia> using FieldFlags
 
-julia> @flaggify struct Foo
+julia> @bitflags struct Foo
            a
            b
            c
@@ -60,25 +60,25 @@ Stacktrace:
 as well as when the given struct either doesn't have any fields, or has duplicates:
 
 ```julia
-julia> @flaggify struct Foo
+julia> @bitflags struct Foo
        end
-ERROR: LoadError: ArgumentError: `@flaggify` needs at least one field.
+ERROR: LoadError: ArgumentError: `@bitflags` needs at least one field.
 Stacktrace:
- [1] flaggify(expr::Expr)
+ [1] bitflags(expr::Expr)
    @ FieldFlags ~/Documents/projects/FieldFlags.jl/src/FieldFlags.jl:34
- [2] var"@flaggify"(__source__::LineNumberNode, __module__::Module, expr::Any)
+ [2] var"@bitflags"(__source__::LineNumberNode, __module__::Module, expr::Any)
    @ FieldFlags ~/Documents/projects/FieldFlags.jl/src/FieldFlags.jl:114
 in expression starting at REPL[2]:1
 
-julia> @flaggify struct Foo2
+julia> @bitflags struct Foo2
            a
            a
        end
 ERROR: LoadError: ArgumentError: Fields need to be uniquely identifiable!
 Stacktrace:
- [1] flaggify(expr::Expr)
+ [1] bitflags(expr::Expr)
    @ FieldFlags ~/Documents/projects/FieldFlags.jl/src/FieldFlags.jl:36
- [2] var"@flaggify"(__source__::LineNumberNode, __module__::Module, expr::Any)
+ [2] var"@bitflags"(__source__::LineNumberNode, __module__::Module, expr::Any)
    @ FieldFlags ~/Documents/projects/FieldFlags.jl/src/FieldFlags.jl:114
 in expression starting at REPL[4]:1
 ```
@@ -105,7 +105,7 @@ so no error paths survive during optimization (if the compiler can constant prop
 and keeps being efficient for even large structs:
 
 ```julia
-julia> @flaggify struct Foo3
+julia> @bitflags struct Foo3
            a
            b
            c
@@ -168,4 +168,67 @@ julia_foo_290:                          # @julia_foo_290
 ; └
                                         # -- End function
 	.section	".note.GNU-stack","",@progbits
+```
+
+## Bitfields
+
+Apart from bitflags, which guarantee a `Bool` on property access, there's also `@bitfield`, for densely packing
+integers of various sizes into an object, which also supports setting fields:
+
+```julia
+julia> @bitfield struct Foo
+           a:1
+           b:2
+           c:1
+       end
+
+julia> f = Foo(0,3,1)
+Foo(Foo_fields(0x0e))
+
+julia> f.a
+false
+
+julia> f.b
+0x0000000000000003
+
+julia> f.c
+true
+
+julia> isone(f.c)
+true
+
+julia> iszero(f.a)
+true
+
+julia> f.a = 1
+1
+
+julia> f.a
+true
+```
+
+One limitation of allowing fields to be set is that the object is declared as `mutable`, which may cause allocations
+and results in the object no longer being `isbits`. This may change in the future.
+
+## Unnamed fields
+
+Both `@bitflags` and `@bitfield` also support unnamed, explicit padding bits:
+
+```julia
+julia> @bitfield struct Baz
+           a:1
+           _:7
+           b:2
+           _:16
+           c:1
+       end
+
+julia> sizeof(Baz)
+4
+
+julia> propertynames(Baz(1,2,3))
+(:a, :b, :c)
+
+julia> FieldFlags.propertyoffset.(Baz, propertynames(Baz(1,2,3)))
+(0, 8, 26)
 ```
