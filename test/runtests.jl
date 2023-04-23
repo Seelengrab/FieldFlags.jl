@@ -124,10 +124,10 @@ end
     offsets = (0,1,4,10,16)
     @testset for f in 1:5
         @test hasproperty(obj, fields[f])
-        if isone(FieldFlags.fieldsize(fieldtype(EmptyBitFields, :fields), fields[f])) 
+        if isone(FieldFlags.fieldsize(EmptyBitFields, fields[f]))
             @test getproperty(obj, fields[f]) isa Bool
         end
-        @test FieldFlags.propertyoffset(fieldtype(EmptyBitFields, :fields), fields[f]) == offsets[f]
+        @test FieldFlags.propertyoffset(EmptyBitFields, fields[f]) == offsets[f]
         @test getproperty(obj, fields[f]) == args[f]
     end
 end
