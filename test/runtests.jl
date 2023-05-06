@@ -74,15 +74,20 @@ end # end @bitflags
         @test 8*sizeof(NonPow2) == nextpow(Sys.WORD_SIZE, 24)
     end
 end
+@testset "mutable: $mut" for mut in (true, false)
 @testset for nfields in (7,8,9)
     fields = [ :($p:$n) for (n,p) in zip(shuffle(rand(2:4, nfields)), pos_fields[1:nfields]) ]
-    name = Symbol("struct_" * randstring(5) * string(nfields))
-    :(
-        @bitfield struct $name
-            $(fields...)
-        end
-    ) |> eval
-
+    name = Symbol("struct_" * randstring(5) * string(nfields) * '_' * string(mut))
+    str = if mut
+        :(@bitfield mutable struct $name
+              $(fields...)
+          end)
+    else
+        :(@bitfield struct $name
+              $(fields...)
+          end)
+    end
+    eval(str)
     args = rand(Bool, nfields)
     obj = eval(:($name($(args...))))
     sumfields = sum(x -> x.args[3], fields)
@@ -97,13 +102,19 @@ end
         @test hasproperty(obj, fields[f].args[2])
         @test getproperty(obj, fields[f].args[2]) == args[f]
         rand_set = rand(Bool)
-        @test setproperty!(obj, fields[f].args[2], rand_set) == rand_set
-        @test getproperty(obj, fields[f].args[2]) == rand_set
+        if mut
+            @test setproperty!(obj, fields[f].args[2], rand_set) == rand_set
+            @test getproperty(obj, fields[f].args[2]) == rand_set
+        else
+            @test_throws ErrorException("setfield!: immutable struct of type $name cannot be changed") setproperty!(obj, fields[f].args[2], rand_set)
+        end
     end
-end
+end # dense bitfields
 @testset "Empty fields" begin
-    :(
-        @bitfield struct EmptyBitFields
+    name = Symbol("EmptyBitFields_" * string(mut))
+    str = if mut
+        :(
+        @bitfield mutable struct $name
             a:1
             b:2
             _:1
@@ -113,23 +124,37 @@ end
             _:3
             _:2
             e:1
-        end
-    ) |> eval
-    @test sizeof(EmptyBitFields) == 4
+        end)
+    else
+        :(@bitfield struct $name
+            a:1
+            b:2
+            _:1
+            c:2
+            _:4
+            d:1
+            _:3
+            _:2
+            e:1
+        end)
+    end
+    eval(str)
     args = (rand(Bool, 5)...,)
-    obj = EmptyBitFields(args...)
+    obj = eval(:($name($(args...))))
+    @test sizeof(typeof(obj)) == 4
     fields = (:a,:b,:c,:d,:e)
     @test propertynames(obj) == fields
     @test !hasproperty(obj, :_)
     offsets = (0,1,4,10,16)
     @testset for f in 1:5
         @test hasproperty(obj, fields[f])
-        if isone(FieldFlags.fieldsize(EmptyBitFields, fields[f]))
+        if isone(FieldFlags.fieldsize(typeof(obj), fields[f]))
             @test getproperty(obj, fields[f]) isa Bool
         end
-        @test FieldFlags.propertyoffset(EmptyBitFields, fields[f]) == offsets[f]
+        @test FieldFlags.propertyoffset(typeof(obj), fields[f]) == offsets[f]
         @test getproperty(obj, fields[f]) == args[f]
     end
-end
-end # end @bitefields
+end # empty fields
+end # mutability
+end # end @bitfields
 end # end All Tests

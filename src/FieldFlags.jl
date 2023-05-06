@@ -44,6 +44,7 @@ end
 
 function bitfield(expr::Expr)
     expr.head == :struct || throw(ArgumentError("`@bitfields` needs a struct definition!"))
+    mutable = expr.args[1]
     typename = expr.args[2]
     typename_internal = Symbol(typename, :_fields)
     T = esc(typename)
@@ -74,14 +75,23 @@ function bitfield(expr::Expr)
     # It's a composite type, there is no arithmetic here
     # Also helps the compiler/LLVM later on to not mix up types
     # The primitive type is explicitly wrapped in a `mutable struct`
-    # which ends up providing the `setindex!` interface
+    # which ends up providing the `setindex!` interface, if the
+    # requested struct is declared `mutable` as well
     newob = Expr(:new, T, Expr(:call, :cast_or_extend, Ti, 0x0))
-    typedefs = :(
-        primitive type $typename_internal $typesize end;
-        mutable struct $T
+    mutstruct = if mutable
+        :(mutable struct $T
             fields::$Ti
             $T() = $newob
-        end
+        end)
+    else
+        :(struct $T
+            fields::$Ti
+            $T() = $newob
+        end)
+    end
+    typedefs = :(
+        primitive type $typename_internal $typesize end;
+        $mutstruct
     )
 
     # make the properties accessible
@@ -181,12 +191,17 @@ function bitfield(expr::Expr)
         push!(propsize.args[2].args, sizeexpr)
         push!(propoffset.args[2].args, offsetexpr)
         push!(getprop.args[2].args, getpropexpr)
-        push!(setprop.args[2].args, setpropexpr)
+        # only build the setproperty! expression when we actually need it
+        mutable && push!(setprop.args[2].args, setpropexpr)
     end
-    mutstruct = last(typedefs.args)
     push!(bodyargs, Expr(:return, Expr(:call, :new, :ret)))
     push!(getprop.args[2].args, :(return zero(UInt))) # never hit, only for type stability
-    push!(setprop.args[2].args, :(return zero(W))) # never hit, only for type stability
+    if mutable
+        push!(setprop.args[2].args, :(return zero(W))) # never hit, only for type stability
+    else
+        # the struct we're building is immutable anyway
+        push!(setprop.args[2].args, :(error("setfield!: immutable struct of type $($T) cannot be changed")))
+    end
     call = Expr(:call, callargs...)
     block = Expr(:block, bodyargs...)
     constr = Expr(:function, call, block)
