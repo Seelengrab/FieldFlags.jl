@@ -16,8 +16,8 @@ Gives the size (in bits) the field `s` takes up in objects of type `T`.
 """
 function fieldsize end
 
-function cast_or_extend(T::DataType, x::Union{UInt8, Bool})
-    if sizeof(T) === 1
+function cast_or_extend(T::DataType, x)
+    if sizeof(T) === sizeof(x)
         Core.Intrinsics.bitcast(T, x)
     else # can only be larger - if sizeof(T) is zero, we threw
         Core.Intrinsics.zext_int(T, x)
@@ -81,11 +81,13 @@ function bitfield(expr::Expr)
     mutstruct = if mutable
         :(mutable struct $T
             fields::$Ti
+            $T(t::$Ti) = new(t)
             $T() = $newob
         end)
     else
         :(struct $T
             fields::$Ti
+            $T(t::$Ti) = new(t)
             $T() = $newob
         end)
     end
@@ -124,6 +126,12 @@ function bitfield(expr::Expr)
             maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
             maskeddata = v & ~(~zero(W) << fieldsize($T, s))
             val = cast_extend_truncate($Ti, maskeddata)
+        end
+    )
+    conv = :(
+        function Base.convert(::Type{$T}, x::X) where X
+            isprimitivetype(X) || throw(ArgumentError("Cannot convert objects of type $X to objects of type $($T)."))
+            $T(cast_extend_truncate($Ti, x))
         end
     )
 
@@ -212,6 +220,7 @@ function bitfield(expr::Expr)
     return :(
         $typedefs;
         $typefuncs;
+        $conv;
         $propsize;
         $propoffset;
         $getprop;

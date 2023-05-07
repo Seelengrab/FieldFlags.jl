@@ -62,6 +62,7 @@ end
     end
 end
 end # end @bitflags
+
 @testset "@bitfields" begin
 @testset "non-pow-2 size" begin
     @bitfield struct NonPow2
@@ -74,6 +75,7 @@ end # end @bitflags
         @test 8*sizeof(NonPow2) == nextpow(Sys.WORD_SIZE, 24)
     end
 end
+
 @testset "mutable: $mut" for mut in (true, false)
 @testset for nfields in (7,8,9)
     fields = [ :($p:$n) for (n,p) in zip(shuffle(rand(2:4, nfields)), pos_fields[1:nfields]) ]
@@ -89,7 +91,8 @@ end
     end
     eval(str)
     args = rand(Bool, nfields)
-    obj = eval(:($name($(args...))))
+    T = eval(:($name))
+    obj = T(args...)
     sumfields = sum(x -> x.args[3], fields)
     @test sizeof(getfield(obj, :fields)) == div(sumfields, 8, RoundUp)
     # these two should always pass/fail together
@@ -97,7 +100,14 @@ end
     @test_throws ArgumentError("Objects of type `$name` have no field `dummy`") getproperty(obj, :dummy)
 
     @test propertynames(obj) == ntuple(f -> fields[f].args[2], nfields)
+    zeroobj = convert(T, 0)
+    oneobj = convert(T, -1)
     @testset for f in 1:nfields
+        # the empty convert preserves emptiness
+        @test iszero(getproperty(zeroobj, fields[f].args[2]))
+        # the full convert preserves fullness
+        @test ndigits(getproperty(oneobj, fields[f].args[2]); base=2) === fields[f].args[3]
+
         # these two should always pass/fail together
         @test hasproperty(obj, fields[f].args[2])
         @test getproperty(obj, fields[f].args[2]) == args[f]
@@ -110,6 +120,7 @@ end
         end
     end
 end # dense bitfields
+
 @testset "Empty fields" begin
     name = Symbol("EmptyBitFields_" * string(mut))
     str = if mut
