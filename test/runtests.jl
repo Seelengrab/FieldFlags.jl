@@ -14,13 +14,22 @@ const pos_fields = (Symbol.('a':('a'+9))...,)
 @testset "All Tests" begin
 @testset "@bitflags" begin
 @testset for nfields in (7,8,9)
+@testset "mutable: $mut" for mut in (true, false)
     fields = pos_fields[1:nfields]
-    name = Symbol("struct_" * randstring(5) * string(nfields))
-    :(
-        @bitflags struct $name
-            $(fields...)
-        end
-    ) |> eval
+    name = Symbol("struct_" * randstring(5) * string(nfields) * "_$mut")
+    if mut
+        :(
+            @bitflags mutable struct $name
+                $(fields...)
+            end
+        ) |> eval
+    else
+        :(
+            @bitflags struct $name
+                $(fields...)
+            end
+        ) |> eval
+    end
 
     args = rand(Bool, nfields)
     obj = eval(:($name($(args...))))
@@ -34,7 +43,13 @@ const pos_fields = (Symbol.('a':('a'+9))...,)
         # these two should always pass/fail together
         @test hasproperty(obj, fields[f])
         @test getproperty(obj, fields[f]) == args[f]
+        if mut
+            val = rand(Bool)
+            setproperty!(obj, fields[f], val)
+            @test getproperty(obj, fields[f]) == val
+        end
     end
+end
 end
 @testset "Empty bits" begin
     :(
