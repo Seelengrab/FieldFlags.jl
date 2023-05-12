@@ -238,87 +238,18 @@ end
 
 function bitflags(expr::Expr)
     expr.head == :struct || throw(ArgumentError("`@bitflags` needs a struct definition!"))
-    typename = expr.args[2]
-    T = esc(typename)
-    fields = identity.(filter(s -> s isa Symbol, expr.args[3].args))
+    exprfields = expr.args[3].args
+    fields = identity.(filter(s -> s isa Symbol, exprfields))
     isempty(fields) && throw(ArgumentError("`@bitflags` needs at least one field."))
     # TODO: Give a better error here, showing which fields are duplicated
     allunique(filter(!=(:_), fields)) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
-    nfields = length(fields)
-    # `primitive type` currently requires a multiple of 8
-    # also makes accessing the bits later easier
-    # don't want to oversize when we have exactly 8,16,.. fields
-    typesize  = div(nfields, 8, RoundUp) * 8
-    typedef = :(
-        primitive type $typename $typesize end
-    )
-
-    # make the properties accessible
-    fieldtuple = ntuple(x -> fields[x], length(fields))
-    filterednames = filter(!=(:_), fieldtuple)
-    typefuncs = :(
-        Base.propertynames(_::$T) = $filterednames
-    )
-
-    # prepare our `getproperty` overload
-    getprop = :(
-        function Base.getproperty(x::$T, s::Symbol)
-            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
-            maskbase = cast_or_extend($T, 0x1)
-            zero = cast_or_extend($T, 0x0)
-        end
-    )
-
-    # build constructor together with `getproperty`
-    callargs = Any[T]
-    bodyargs = Any[]
-    # initialize return value of constructor
-    push!(bodyargs, :(ret = cast_or_extend($T, 0x0)))
-    # for every symbol of the original struct, generate an `if` 
-    # checking for it. `push!` the expression to the `getproperty` expression
-    # and generate the conversion in the constructor as well
-    funcblock = getprop.args[2].args
-    for (i,f) in enumerate(fields)
-        f === :_ && continue
-        shiftbase = i-1
-
-        # name argument `f::Bool`
-        push!(callargs, Expr(:(::), f, Bool))
-        cast_f = Symbol(f, :_cast)
-        shift_f = Symbol(f, :_shift)
-        body = :(
-            # shift argument into the correct field position
-            $cast_f = cast_or_extend($T, $f);
-            $shift_f = cast_extend_truncate($T, $shiftbase);
-            $cast_f = Core.Intrinsics.shl_int($cast_f, $shift_f);
-            # `or` it into the result
-            ret = Core.Intrinsics.or_int(ret, $cast_f)
-        )
-        push!(bodyargs, body)
-
-        ifexpr = :(
-            if s === $(QuoteNode(f)) # interpolate the literal symbol
-                shift = cast_extend_truncate($T, $shiftbase)
-                mask = Core.Intrinsics.shl_int(maskbase, shift)
-                val = Core.Intrinsics.and_int(x, mask)
-                return Core.Intrinsics.ne_int(val, zero)
-            end
-        )
-        push!(funcblock, ifexpr)
+    # we do the heavy lifting in @bitfield, so that @bitflags is just an easier interface
+    for n in eachindex(exprfields)
+        arg = exprfields[n]
+        arg isa Symbol || continue
+        exprfields[n] = Expr(:call, :(:), arg, 1)
     end
-    push!(bodyargs, :(return ret))
-    push!(funcblock, :(return false)) # this is never hit, but makes the above typestable
-    call = Expr(:call, callargs...)
-    block = Expr(:block, bodyargs...)
-    constr = Expr(:function, call, block)
-
-    # FieldFlags, assemble!
-    return :(
-        $typedef;
-        $constr;
-        $typefuncs;
-        $getprop
-    )
+    bitfield(expr)
 end
 
 macro bitflags(expr)
