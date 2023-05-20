@@ -103,37 +103,8 @@ function bitfield(expr::Expr)
     )
 
     # prepare our `getproperty` overload
-    propsize = :(
-        function FieldFlags.fieldsize(_::Type{$T}, s::Symbol)
-            s ∈ $filterednames || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
-        end
-    )
-    propoffset = :(
-        function FieldFlags.propertyoffset(_::Type{$T}, s::Symbol)
-            s ∈ $filterednames || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
-        end
-    )
-    getprop = :(
-        function Base.getproperty(x::$T, s::Symbol)
-            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
-            data = getfield(x, :fields)
-            maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
-        end
-    )
-    setprop = :(
-        function Base.setproperty!(x::$T, s::Symbol, v::W) where W
-            s ∈ propertynames(x) || throw(ArgumentError("Objects of type `$($T)` have no field `$s`"))
-            maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
-            maskeddata = v & ~(~zero(W) << fieldsize($T, s))
-            val = cast_extend_truncate($Ti, maskeddata)
-        end
-    )
-    conv = :(
-        function Base.convert(::Type{$T}, x::X) where X
-            isprimitivetype(X) || throw(ArgumentError("Cannot convert objects of type $X to objects of type $($T)."))
-            $T(cast_extend_truncate($Ti, x))
-        end
-    )
+    nosuchfieldstr = "Objects of type `$typename` have no field `"
+    errexpr = :(ArgumentError(LazyString($nosuchfieldstr, s, "`")))
 
     # build constructor together with `getproperty`
     callargs = Any[T]
@@ -141,44 +112,60 @@ function bitfield(expr::Expr)
     # initialize return value of constructor
     push!(bodyargs, :(ret = cast_or_extend($Ti, 0x0)))
     running_offset = 0
+    sizeexpr = origsize = Expr(:if)
+    offsetexpr = origoffset = Expr(:if)
+    getpropexpr = origgetprop = Expr(:if)
+    setpropexpr = origsetprop = Expr(:if)
     for (fieldname,fieldsize) in fields
         # TODO: Invent some way to get an integer type of the correct bitsize without `@eval`, like Zigs' iX
         casttype = isone(fieldsize) ? Bool : UInt
-        sizeexpr = :(
-            if s === $(QuoteNode(fieldname))
-                return $fieldsize
-            end
-        )
-        offsetexpr = :(
-            if s === $(QuoteNode(fieldname))
-                return $running_offset
-            end
-        )
+        
+        push!(sizeexpr.args, :(s === $(QuoteNode(fieldname))))
+        push!(sizeexpr.args, :(return $fieldsize))
+        nsize = Expr(:elseif)
+        push!(sizeexpr.args, nsize)
+        sizeexpr = nsize
+
+        push!(offsetexpr.args, :(s === $(QuoteNode(fieldname))))
+        push!(offsetexpr.args, :(return $running_offset))
+        noffexpr = Expr(:elseif)
+        push!(offsetexpr.args, noffexpr)
+        offsetexpr = noffexpr
+
         running_offset += fieldsize
         fieldname === :_ && continue
 
-        getpropexpr = :(
-            if s === $(QuoteNode(fieldname))
-                offsetshift = cast_extend_truncate($Ti, propertyoffset($T, s))
-                shifted = Core.Intrinsics.lshr_int(data, offsetshift)
-                maskshift = cast_extend_truncate($Ti, fieldsize($T, s))
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, maskshift))
-                masked = Core.Intrinsics.and_int(shifted, mask)
-                return cast_extend_truncate($casttype, masked)
-            end
+        push!(getpropexpr.args, :(s === $(QuoteNode(fieldname))))
+        ifbody = :(
+            offsetshift = cast_extend_truncate($Ti, propertyoffset($T, s));
+            shifted = Core.Intrinsics.lshr_int(data, offsetshift);
+            maskshift = cast_extend_truncate($Ti, fieldsize($T, s));
+            mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, maskshift));
+            masked = Core.Intrinsics.and_int(shifted, mask);
+            return cast_extend_truncate($casttype, masked);
         )
-        setpropexpr = :(
-            if s === $(QuoteNode(fieldname))
-                offsetshift = cast_extend_truncate($Ti, propertyoffset($T, s))
-                shifted = Core.Intrinsics.shl_int(val, offsetshift)
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, fieldsize($T, s)))
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, propertyoffset($T, s)))
-                cleareddata = Core.Intrinsics.and_int(getfield(x, :fields), mask)
-                newdata = Core.Intrinsics.or_int(cleareddata, shifted)
-                setfield!(x, :fields, newdata)
-                return maskeddata
-            end
-        )
+        push!(getpropexpr.args, ifbody)
+        ngetprop = Expr(:elseif)
+        push!(getpropexpr.args, ngetprop)
+        getpropexpr = ngetprop
+
+        if mutable
+            push!(setpropexpr.args, :(s === $(QuoteNode(fieldname))))
+            ifbody = :(
+                offsetshift = cast_extend_truncate($Ti, propertyoffset($T, s));
+                shifted = Core.Intrinsics.shl_int(val, offsetshift);
+                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, fieldsize($T, s)));
+                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, propertyoffset($T, s)));
+                cleareddata = Core.Intrinsics.and_int(getfield(x, :fields), mask);
+                newdata = Core.Intrinsics.or_int(cleareddata, shifted);
+                setfield!(x, :fields, newdata);
+                return maskeddata;
+            )
+            push!(setpropexpr.args, ifbody)
+            nsetprop = Expr(:elseif)
+            push!(setpropexpr.args, nsetprop)
+            setpropexpr = nsetprop
+        end
         
         # constructor args
         push!(callargs, Expr(:(::), fieldname, Union{Bool, Base.BitInteger}))
@@ -195,25 +182,58 @@ function bitfield(expr::Expr)
             ret = Core.Intrinsics.or_int(ret, $cast_f)
         )
         push!(bodyargs, body)
-
-        push!(propsize.args[2].args, sizeexpr)
-        push!(propoffset.args[2].args, offsetexpr)
-        push!(getprop.args[2].args, getpropexpr)
-        # only build the setproperty! expression when we actually need it
-        mutable && push!(setprop.args[2].args, setpropexpr)
     end
     push!(bodyargs, Expr(:return, Expr(:call, :new, :ret)))
-    push!(getprop.args[2].args, :(return zero(UInt))) # never hit, only for type stability
+    getpropexpr.head = :call
+    push!(getpropexpr.args, :throw, errexpr)
+    setpropexpr.head = :call
     if mutable
-        push!(setprop.args[2].args, :(return zero(W))) # never hit, only for type stability
+        push!(setpropexpr.args, :throw, errexpr)
     else
         # the struct we're building is immutable anyway
-        push!(setprop.args[2].args, :(error("setfield!: immutable struct of type $($T) cannot be changed")))
+        push!(setpropexpr.args, :error, "setfield!: immutable struct of type $typename cannot be changed")
     end
+    sizeexpr.head = :call
+    push!(sizeexpr.args, :throw, errexpr)
+    offsetexpr.head = :call
+    push!(offsetexpr.args, :throw, errexpr)
+
     call = Expr(:call, callargs...)
     block = Expr(:block, bodyargs...)
     constr = Expr(:function, call, block)
     push!(mutstruct.args[3].args, constr)
+
+    propsize = :(
+        function FieldFlags.fieldsize(_::Type{$T}, s::Symbol)
+            $origsize
+        end
+    )
+    propoffset = :(
+        function FieldFlags.propertyoffset(_::Type{$T}, s::Symbol)
+            $origoffset
+        end
+    )
+    getprop = :(
+        function Base.getproperty(x::$T, s::Symbol)
+            data = getfield(x, :fields)
+            maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
+            $origgetprop
+        end
+    )
+    setprop = :(
+        function Base.setproperty!(x::$T, s::Symbol, v::W) where W
+            maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
+            maskeddata = v & ~(~zero(W) << fieldsize($T, s))
+            val = cast_extend_truncate($Ti, maskeddata)
+            $origsetprop
+        end
+    )
+    conv = :(
+        function Base.convert(::Type{$T}, x::X) where X
+            isprimitivetype(X) || throw(ArgumentError(LazyString("Cannot convert objects of type ", X, " to objects of type ", $T,".")))
+            $T(cast_extend_truncate($Ti, x))
+        end
+    )
 
     ###
 
