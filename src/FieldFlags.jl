@@ -103,9 +103,6 @@ function bitfield(expr::Expr)
     )
 
     # prepare our `getproperty` overload
-    nosuchfieldstr = "Objects of type `$typename` have no field `"
-    errexpr = :(ArgumentError(LazyString($nosuchfieldstr, s, "`")))
-
     # build constructor together with `getproperty`
     callargs = Any[T]
     bodyargs = Any[]
@@ -184,15 +181,33 @@ function bitfield(expr::Expr)
         push!(bodyargs, body)
     end
     push!(bodyargs, Expr(:return, Expr(:call, :new, :ret)))
-    getpropexpr.head = :call
-    push!(getpropexpr.args, :throw, errexpr)
-    setpropexpr.head = :call
-    if mutable
-        push!(setpropexpr.args, :throw, errexpr)
+
+    nosuchfieldstr = "Objects of type `$typename` have no field `"
+    fielderrstr = "type $typename has no field fields"
+    errexpr = :(ArgumentError(LazyString($nosuchfieldstr, s, "`")))
+
+    if !(:fields in fieldtuple)
+        # we can just branch & error here, to disallow
+        # property access to the internal field
+        push!(getpropexpr.args, :(s === :fields))
+        push!(getpropexpr.args, :(error($fielderrstr)))
+        push!(getpropexpr.args, :(getfield(x, s)))
+
+        push!(setpropexpr.args, :(s === :fields))
+        push!(setpropexpr.args, :(error($fielderrstr)))
+        push!(setpropexpr.args, :(setfield!(x, v, s)))
     else
-        # the struct we're building is immutable anyway
-        push!(setpropexpr.args, :error, "setfield!: immutable struct of type $typename cannot be changed")
+        # there is a user defined field :fields
+        # so just change the last else block from
+        # another elseif to a call to getfield,
+        # which will produce an error that JET.jl
+        # reports even without mode=:sound
+        getpropexpr.head = :call
+        push!(getpropexpr.args, :getfield, :x, :s)
+        setpropexpr.head = :call
+        push!(setpropexpr.args, :setfield!, :x, :v, :s)
     end
+
     sizeexpr.head = :call
     push!(sizeexpr.args, :throw, errexpr)
     offsetexpr.head = :call
@@ -230,8 +245,11 @@ function bitfield(expr::Expr)
     )
     conv = :(
         function Base.convert(::Type{$T}, x::X) where X
-            isprimitivetype(X) || throw(ArgumentError(LazyString("Cannot convert objects of type ", X, " to objects of type ", $T,".")))
-            $T(cast_extend_truncate($Ti, x))
+            if !isprimitivetype(X)
+                throw(ArgumentError(LazyString("Cannot convert objects of type ", X, " to objects of type ", $T,".")))
+            else
+                $T(cast_extend_truncate($Ti, x))
+            end
         end
     )
 
