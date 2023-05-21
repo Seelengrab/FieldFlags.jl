@@ -189,12 +189,14 @@ function bitfield(expr::Expr)
     if !(:fields in fieldtuple)
         # we can just branch & error here, to disallow
         # property access to the internal field
+        # this will unfortunately cause a false positive in report_package
         push!(getpropexpr.args, :(s === :fields))
         push!(getpropexpr.args, :(error($fielderrstr)))
         push!(getpropexpr.args, :(getfield(x, s)))
 
         push!(setpropexpr.args, :(s === :fields))
         push!(setpropexpr.args, :(error($fielderrstr)))
+        # this will unfortunately cause a false positive in report_package
         push!(setpropexpr.args, :(setfield!(x, v, s)))
     else
         # there is a user defined field :fields
