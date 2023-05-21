@@ -1,5 +1,6 @@
 using Test
 using FieldFlags
+using JET
 using Random
 
 #=
@@ -36,7 +37,7 @@ const pos_fields = (Symbol.('a':('a'+9))...,)
     @test sizeof(obj) == ceil(Int, nfields/8)
     # these two should always pass/fail together
     @test !hasproperty(obj, :dummy)
-    @test_throws ArgumentError("Objects of type `$name` have no field `dummy`") getproperty(obj, :dummy)
+    @test_throws ErrorException("type $name has no field dummy") getproperty(obj, :dummy)
 
     @test propertynames(obj) == fields
     @testset for f in 1:nfields
@@ -112,7 +113,7 @@ end
     @test sizeof(getfield(obj, :fields)) == div(sumfields, 8, RoundUp)
     # these two should always pass/fail together
     @test !hasproperty(obj, :dummy)
-    @test_throws ArgumentError("Objects of type `$name` have no field `dummy`") getproperty(obj, :dummy)
+    @test_throws ErrorException("type $name has no field dummy") getproperty(obj, :dummy)
 
     @test propertynames(obj) == ntuple(f -> fields[f].args[2], nfields)
     zeroobj = convert(T, 0)
@@ -183,4 +184,79 @@ end # dense bitfields
 end # empty fields
 end # mutability
 end # end @bitfields
+
+@testset "Propertyaccess to internal field" begin
+    @testset "`fields` field has been specified by the user" begin
+        @bitflags struct FieldsField
+            _
+            fields
+        end
+        args = rand(Bool)
+        obj = FieldsField(args)
+        @test hasfield(FieldsField, :fields)
+        @test hasproperty(obj, :fields)
+        @test obj.fields == args
+        @test obj.fields isa Bool
+        @test !(getfield(obj, :fields) isa Bool)
+        # one gives the field, the other gives the internal object
+        @test obj.fields != getfield(obj, :fields)
+    end
+    @testset "`fields` has NOT been specified by the user" begin
+        @bitflags struct FooField
+            _
+            foo
+        end
+        args = rand(Bool)
+        obj = FooField(args)
+        @test hasfield(FooField, :fields)
+        @test !(getfield(obj, :fields) isa Bool)
+        @test !hasproperty(obj, :fields)
+        @test_throws ErrorException("type FooField has no field fields") obj.fields
+    end
+end
+
+@testset "Effects" begin
+    @bitflags struct JETStruct
+        a
+        _
+        b
+    end
+    @testset "foldableAccess" begin
+        foldableAccess(j::JETStruct) = j.a
+        @test isempty(JET.get_reports(report_call(foldableAccess, (JETStruct,))))
+        effects = Base.infer_effects(foldableAccess, (JETStruct,))
+        @test Core.Compiler.is_foldable(effects)
+        @inferred Bool foldableAccess(JETStruct(true, false))
+    end
+    @testset "erroringAccess" begin
+        erroringAccess(j::JETStruct) = j.z
+        reps = JET.get_reports(report_call(erroringAccess, (JETStruct,)))
+        @test !isempty(reps)
+        @test reps[1].msg == "type JETStruct has no field z"
+        effects = Base.infer_effects(erroringAccess, (JETStruct,))
+        @test !Core.Compiler.is_nothrow(effects)
+        rettypes = Base.return_types(erroringAccess, (JETStruct,))
+        @test only(rettypes) == Union{}
+    end
+    @testset "effects of getproperty of :fields" begin
+        erroringFields(j::FooField) = j.fields
+        reps = JET.get_reports(report_call(erroringFields, (FooField,)))
+        @test !isempty(reps)
+        # there's gotta be a better way of testing that,
+        # since this test will break if the internals change
+        @test reps[1].vst[2].sig._sig[3].val == "type FooField has no field fields"
+        effects = Base.infer_effects(erroringFields, (FooField,))
+        @test !Core.Compiler.is_nothrow(effects)
+        rettypes = Base.return_types(erroringFields, (FooField,))
+        @test only(rettypes) == Union{}
+
+        # now what if we DO have a `fields` field?
+        foldableFields(j::FieldsField) = j.fields
+        @test isempty(JET.get_reports(report_call(foldableFields, (FieldsField,))))
+        effects = Base.infer_effects(foldableFields, (FieldsField,))
+        @test Core.Compiler.is_foldable(effects)
+        @inferred Bool foldableFields(FieldsField(true))
+    end
+end
+
 end # end All Tests
