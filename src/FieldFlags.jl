@@ -171,6 +171,7 @@ function bitfield(expr::Expr)
         push!(getpropexpr.args, ngetprop)
         getpropexpr = ngetprop
 
+        # only build the expression if we actually need to
         if mutable
             push!(setpropexpr.args, :(s === $(QuoteNode(fieldname))))
             ifbody = :(
@@ -324,7 +325,7 @@ For example, the struct given above has this layout:
 where `_` is padding, with undefined value.
 
 The constructor created for structs defined with `@bitfield` takes any type in
-`Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8}` and converts it
+`Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8, Bool}` and converts it
 to the correct size by truncating the upper bits, before storing the truncated value in the object.
 This truncation also occurs when writing to a field of a mutable object.
 
