@@ -3,16 +3,43 @@ module FieldFlags
 export @bitflags, @bitfield
 
 """
-   propertyoffset(::Type{T}, s::Symbol)
+    propertyoffset(::Type{T}, s::Symbol)
 
 Gives the offset (in bits) the field `s` is placed at in objects of type `T`.
+
+```jldoctest
+julia> @bitflags mutable struct MyFlags
+           flagA
+           _ # padding
+           flagB
+       end
+
+julia> FieldFlags.propertyoffset(MyFlags, :flagA)
+0
+
+julia> FieldFlags.propertyoffset(MyFlags, :flagB)
+2
+```
 """
 function propertyoffset end
 
 """
-   fieldsize(::Type{T}, s::Symbol)
+    fieldsize(::Type{T}, s::Symbol)
 
 Gives the size (in bits) the field `s` takes up in objects of type `T`.
+
+```jldoctest
+julia> @bitfield mutable struct MyFlags
+           a:2
+           _ # padding
+           b:3
+       end
+
+julia> FieldFlags.fieldsize(MyFlags, :a)
+2
+
+julia> FieldFlags.fieldsize(MyFlags, :b)
+3
 """
 function fieldsize end
 
@@ -39,8 +66,6 @@ function cast_extend_truncate(T::DataType, x)
         Core.Intrinsics.bitcast(T, x)
     end
 end
-
-# TODO: There is a lot of overlap between `bitflags` and `bitfields`, so consider merging these later
 
 function bitfield(expr::Expr)
     expr.head == :struct || throw(ArgumentError("`@bitfields` needs a struct definition!"))
@@ -268,6 +293,76 @@ function bitfield(expr::Expr)
     )
 end
 
+"""
+    @bitfield [mutable] struct MyFlags
+        a:2
+        b:3
+        _:3 # padding
+        c:1
+    end
+
+Construct a struct representing various fields, with their size specified in bits.
+
+# Extended Help
+
+The fields are stored in a compact format where each field only takes up the specified number of bits.
+Field access gives an unsigned integer, whose lower bits are the bits of the accessed field. The upper
+bits are zeroed. As a special case, fields with size `1` return a `Bool`.
+Explicit padding can be specified by naming a field `_`, with freely chosen width.
+Field names (other than padding) need to be unique. The specified number of bits must be `>= 0`.
+
+The order the fields are given in is the order the fields are stored in. The first field occupies
+the least significant bits, followed by the second field, up to the last field, which is stored in
+the most significant bits.
+
+For example, the struct given above has this layout:
+
+|MSB |    |    |    |    |    |    |    |LSB |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+|c   |_   |_   |_   |b   |b   |b   |a   |a   |
+
+where `_` is padding, with undefined value.
+
+The constructor created for structs defined with `@bitfield` takes any type in
+`Union{Int128, Int16, Int32, Int64, Int8, UInt128, UInt16, UInt32, UInt64, UInt8}` and converts it
+to the correct size by truncating the upper bits, before storing the truncated value in the object.
+This truncation also occurs when writing to a field of a mutable object.
+
+!!! warning "Struct size"
+    Due to compiler limitations, the size of the resulting object will (currently) always be a
+    multiple of 8 bits. The additional bits added due to this are considered padding and can
+    not be relied on to exist. They may be removed in a future release without notice.
+    If you need padding up to a given size, explicitly specify a trailing padding field.
+
+!!! warning "Field type"
+    As there are no variable sized integers in Julia, it is only guaranteed that the return type
+    on field access is large enough to hold all bits required by that field. While currently
+    field sizes larger than `1` return an `UInt`, this is in particular not guaranteed and
+    may be changed in the future, so that e.g. a field of size `2` returns an `UInt8` instead.
+
+# Examples
+
+```jldoctest
+julia> @bitfield struct MyFlags 
+           a:2
+           b:3
+           _:3 # padding
+           c:1
+       end
+
+julia> flags = MyFlags(1,2,3)
+MyFlags(MyFlags_fields(0x0109))
+
+julia> flags.a
+0x0000000000000001
+
+julia> flags.b
+0x0000000000000002
+
+julia> flags.c
+true
+```
+"""
 macro bitfield(expr::Expr)
     bitfield(expr)
 end
@@ -292,6 +387,52 @@ function bitflags(expr::Expr)
     bitfield(expr)
 end
 
+"""
+    @bitflags [mutable] struct MyFlags
+        flagA
+        flagB
+        _ # padding
+        flagC
+    end
+
+Construct a struct representing various boolean flags, stored in a compact format where each flag
+takes up a single bit. Field access gives a `Bool`, explicit padding can be declared by naming a field
+`_`. Field names (other than padding) need to be unique.
+
+!!! warning "Struct size"
+    Due to compiler limitations, the size of the resulting object will (currently) always be a
+    multiple of 8 bits. The additional bits added due to this are considered padding and can
+    not be relied on to exist. They may be removed in a future release without notice.
+
+# Examples
+
+```jldoctest
+julia> @bitflags mutable struct MyFlags
+           flagA
+           flagB
+           _ # padding
+           flagC
+       end
+
+julia> flags = MyFlags(true, false, true)
+MyFlags(MyFlags_fields(0x09))
+
+julia> flags.flagA
+true
+
+julia> flags.flagB
+false
+
+julia> flags.flagB = true
+true
+
+julia> flags.flagB
+true
+
+julia> sizeof(flags)
+1
+```
+"""
 macro bitflags(expr)
     bitflags(expr)
 end
