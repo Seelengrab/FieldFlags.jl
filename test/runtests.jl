@@ -260,7 +260,7 @@ end
         @static if VERSION >=  v"1.9"
             @test_call foldableFields(FieldsField(true))
         else
-            res = JET.report_call(foldableAccess, (JETStruct,))
+            res = JET.report_call(foldableFields, (FieldsField,))
             @test isempty(JET.get_reports(res))
         end
         effects = Base.infer_effects(foldableFields, (FieldsField,))
