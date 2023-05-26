@@ -223,7 +223,12 @@ end
     end
     @testset "foldableAccess" begin
         foldableAccess(j::JETStruct) = j.a
-        @test_call foldableAccess(JETStruct(false, true))
+        @static if VERSION >= v"1.9"
+            @test_call foldableAccess(JETStruct(false, true))
+        else
+            res = JET.report_call(foldableAccess, (JETStruct,))
+            @test isempty(JET.get_reports(res))
+        end
         effects = Base.infer_effects(foldableAccess, (JETStruct,))
         @test Core.Compiler.is_foldable(effects)
         @inferred Bool foldableAccess(JETStruct(true, false))
@@ -252,7 +257,12 @@ end
 
         # now what if we DO have a `fields` field?
         foldableFields(j::FieldsField) = j.fields
-        @test_call foldableFields(FieldsField(true))
+        @static if VERSION >=  v"1.9"
+            @test_call foldableFields(FieldsField(true))
+        else
+            res = JET.report_call(foldableAccess, (JETStruct,))
+            @test isempty(JET.get_reports(res))
+        end
         effects = Base.infer_effects(foldableFields, (FieldsField,))
         @test Core.Compiler.is_foldable(effects)
         @inferred Bool foldableFields(FieldsField(true))
