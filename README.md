@@ -33,7 +33,7 @@ julia> methods(Foo)
      @ none:0
 
 julia> f = Foo(true, false, true)
-Foo(0x05)
+Foo(true, false, true)
 
 julia> f.a
 true
@@ -133,7 +133,7 @@ julia> @bitflags struct Foo3
        end
 
 julia> f = Foo3(rand(Bool, 24)...)
-Foo3(0x1a1f65)
+Foo3(false, true, true, false, false, true, true, true, true, true, true, false, true, false, false, true, false, true, false, false, false, false, true, true)
 
 julia> foo(f) = f.w
 foo (generic function with 1 method)
