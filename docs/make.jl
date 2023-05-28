@@ -12,3 +12,9 @@ makedocs(modules=[FieldFlags],
             "examples.md",
             "api.md"
 ])
+
+!isinteractive() && deploydocs(
+   repo = "github.com/Seelengrab/FieldFlags.jl.git",
+   devbranch = "main",
+   push_preview = true
+)
