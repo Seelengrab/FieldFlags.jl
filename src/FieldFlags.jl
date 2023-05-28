@@ -3,9 +3,11 @@ module FieldFlags
 export @bitflags, @bitfield
 
 """
-    propertyoffset(::Type{T}, s::Symbol)
+    propertyoffset(::Type{T}, s::Symbol) -> Int
 
 Gives the offset (in bits) the field `s` is placed at in objects of type `T`.
+
+See also [`FieldFlags.fieldsize`](@ref).
 
 ```jldoctest
 julia> @bitflags mutable struct MyFlags
@@ -24,25 +26,39 @@ julia> FieldFlags.propertyoffset(MyFlags, :flagB)
 function propertyoffset end
 
 """
-    fieldsize(::Type{T}, s::Symbol)
+    fieldsize(::Type{T}, s::Symbol) -> Int
 
 Gives the size (in bits) the field `s` takes up in objects of type `T`.
 
+See also [`FieldFlags.propertyoffset`](@ref).
+
 ```jldoctest
-julia> @bitfield mutable struct MyFlags
+julia> @bitfield mutable struct MyBits
            a:2
            _ # padding
            b:3
        end
 
-julia> FieldFlags.fieldsize(MyFlags, :a)
+julia> FieldFlags.fieldsize(MyBits, :a)
 2
 
-julia> FieldFlags.fieldsize(MyFlags, :b)
+julia> FieldFlags.fieldsize(MyBits, :b)
 3
+```
 """
 function fieldsize end
 
+"""
+    cast_or_extend(T::DataType, x) -> T
+
+Takes an object `x` of a primitive type and either bitcasts it to `T`
+(if their sizes are egal) or zero-extends the bitrepresentation of `x`
+to the size of `T`. `sizeof(x) <= sizeof(T)` must hold.
+
+Returns a `T`.
+
+See also [`FieldFlags.cast_extend_truncate`](@ref).
+"""
 function cast_or_extend(T::DataType, x)
     if sizeof(T) === sizeof(x)
         Core.Intrinsics.bitcast(T, x)
@@ -51,6 +67,17 @@ function cast_or_extend(T::DataType, x)
     end
 end
 
+"""
+    cast_extend_truncate(T::DataType, x) -> T
+
+Takes an object `x` of a primitive type and either bitcasts it to type `T`
+(if their sizes are egal), zero extends the bitrepresentation of `x` to the
+size of `T`, or truncates the bitrepresentation of `x` to `sizeof(T)`.
+
+Returns a `T`.
+
+See also [`FieldFlags.cast_or_extend`](@ref).
+"""
 function cast_extend_truncate(T::DataType, x)
     if sizeof(x) < sizeof(T)
         # zero extension is always fine
@@ -60,13 +87,47 @@ function cast_extend_truncate(T::DataType, x)
         # we need at least sizeof(T) bits in x to represent
         # all shifts/offsets we can think of - larger stuff
         # is swallowed
-        Core.Intrinsics.trunc_int(T, x) 
+        Core.Intrinsics.trunc_int(T, x)
     else # ==
         # no extension/truncation needed, just bitcast
         Core.Intrinsics.bitcast(T, x)
     end
 end
 
+"""
+    bitfield(expr::Expr)
+
+Takes an `Expr(:struct)` of the form
+
+    struct MyStruct
+        a:x
+        b:y
+        _
+        _:z
+    end
+
+where `a`, `b` are potential field names, `x`, `y`, and `z` are desired bitwidths
+for those fields, `_` is padding and returns the following expression:
+
+    quote
+        \$typedefs;
+        \$typefuncs;
+        \$conv;
+        \$propsize;
+        \$propoffset;
+        \$getprop;
+        \$setprop;
+    end
+
+Where `typedefs` are the new user-facing type definition and the internal type definitions,
+`typefuncs` are type related functions from Base for the new types, `conv` are `convert` methods to those
+types, `propsize` is the implementation for [`FieldFlags.fieldsize`](@ref), `propoffset` is the
+implementation for [`FieldFlags.propertyoffset`](@ref), `getprop` is the definition for the
+`getproperty` overload for the user facing type and `setprop` is the definition for the
+`setproperty!` overloda for the user facing type.
+
+See also [`FieldFlags.bitflags`](@ref).
+"""
 function bitfield(expr::Expr)
     expr.head == :struct || throw(ArgumentError("`@bitfields` needs a struct definition!"))
     mutable = expr.args[1]
@@ -141,7 +202,7 @@ function bitfield(expr::Expr)
     for (fieldname,fieldsize) in fields
         # TODO: Invent some way to get an integer type of the correct bitsize without `@eval`, like Zigs' iX
         casttype = isone(fieldsize) ? Bool : UInt
-        
+
         push!(sizeexpr.args, :(s === $(QuoteNode(fieldname))))
         push!(sizeexpr.args, :(return $fieldsize))
         nsize = Expr(:elseif)
@@ -189,7 +250,7 @@ function bitfield(expr::Expr)
             push!(setpropexpr.args, nsetprop)
             setpropexpr = nsetprop
         end
-        
+
         # constructor args
         push!(callargs, Expr(:(::), fieldname, Union{Bool, Base.BitInteger}))
         cast_f = Symbol(fieldname, :_cast)
@@ -298,11 +359,14 @@ end
     @bitfield [mutable] struct MyFlags
         a:2
         b:3
-        _:3 # padding
+        _[:3] # padding; width is assumed 1 bit if the length is omitted
         c:1
     end
 
 Construct a struct representing various fields, with their size specified in bits.
+The struct can optionally be marked `mutable`.
+
+See also [`@bitflags`](@ref).
 
 # Extended Help
 
@@ -344,7 +408,7 @@ This truncation also occurs when writing to a field of a mutable object.
 # Examples
 
 ```jldoctest
-julia> @bitfield struct MyFlags 
+julia> @bitfield struct MyFlags
            a:2
            b:3
            _:3 # padding
@@ -372,6 +436,31 @@ end
 # Flagstructs
 #####
 
+"""
+    bitflags(::Expr)
+
+The given `Expr(:struct) has the following format
+
+    struct MyFlags
+        a
+        b
+        _
+    end
+
+which is turned into
+
+    struct MyFlags
+        a:1
+        b:1
+        _:1
+    end
+
+before being passed to `FieldFlags.bitfield`.
+
+Some minimal expression filtering is performed.
+
+See also [`@bitflags`](@ref), [`@bitfield`](@ref).
+"""
 function bitflags(expr::Expr)
     expr.head == :struct || throw(ArgumentError("`@bitflags` needs a struct definition!"))
     exprfields = expr.args[3].args
@@ -398,7 +487,9 @@ end
 
 Construct a struct representing various boolean flags, stored in a compact format where each flag
 takes up a single bit. Field access gives a `Bool`, explicit padding can be declared by naming a field
-`_`. Field names (other than padding) need to be unique.
+`_`. Field names (other than padding) need to be unique. The struct can optionally be marked `mutable`.
+
+See also [`@bitfield`](@ref).
 
 !!! warning "Struct size"
     Due to compiler limitations, the size of the resulting object will (currently) always be a
