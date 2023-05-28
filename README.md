@@ -183,7 +183,7 @@ julia> @bitfield struct Foo
        end
 
 julia> f = Foo(0,3,1)
-Foo(Foo_fields(0x0e))
+Foo(false, 0x0000000000000003, true)
 
 julia> f.a
 false
@@ -226,9 +226,9 @@ julia> @bitfield struct Baz
 julia> sizeof(Baz)
 4
 
-julia> propertynames(Baz(1,2,3))
+julia> names = propertynames(Baz(1,2,3))
 (:a, :b, :c)
 
-julia> FieldFlags.propertyoffset.(Baz, propertynames(Baz(1,2,3)))
+julia> FieldFlags.propertyoffset.(Baz, names)
 (0, 8, 26)
 ```

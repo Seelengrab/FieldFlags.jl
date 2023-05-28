@@ -341,6 +341,18 @@ function bitfield(expr::Expr)
             end
         end
     )
+    shows = :(
+        function Base.show(io::IO, m::MIME"text/plain", x::$T)
+            show(io, m, $T)
+            write(io, '(')
+            names = propertynames(x)
+            for i in eachindex(names)
+                show(io, m, getproperty(x, names[i]))
+                i != lastindex(names) && write(io, ", ")
+            end
+            write(io, ')')
+        end
+    )
 
     ###
 
@@ -348,6 +360,7 @@ function bitfield(expr::Expr)
         $typedefs;
         $typefuncs;
         $conv;
+        $shows;
         $propsize;
         $propoffset;
         $getprop;
@@ -356,7 +369,7 @@ function bitfield(expr::Expr)
 end
 
 """
-    @bitfield [mutable] struct MyFlags
+    @bitfield [mutable] struct MyBits
         a:2
         b:3
         _[:3] # padding; width is assumed 1 bit if the length is omitted
@@ -408,23 +421,23 @@ This truncation also occurs when writing to a field of a mutable object.
 # Examples
 
 ```jldoctest
-julia> @bitfield struct MyFlags
+julia> @bitfield struct MyBits
            a:2
            b:3
            _:3 # padding
            c:1
        end
 
-julia> flags = MyFlags(1,2,3)
-MyFlags(MyFlags_fields(0x0109))
+julia> bits = Mybits(1,2,3)
+Mybits(0x0000000000000001, 0x0000000000000002, true)
 
-julia> flags.a
+julia> bits.a
 0x0000000000000001
 
-julia> flags.b
+julia> bits.b
 0x0000000000000002
 
-julia> flags.c
+julia> bits.c
 true
 ```
 """
@@ -507,7 +520,7 @@ julia> @bitflags mutable struct MyFlags
        end
 
 julia> flags = MyFlags(true, false, true)
-MyFlags(MyFlags_fields(0x09))
+MyFlags(true, false, true)
 
 julia> flags.flagA
 true
