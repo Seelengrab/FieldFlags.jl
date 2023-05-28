@@ -1,5 +1,11 @@
 # FlagFields.jl
 
+![CI Stable](https://github.com/Seelengrab/FieldFlags.jl/actions/workflows/ci.yml/badge.svg)
+![CI Nightly](https://github.com/Seelengrab/FieldFlags.jl/actions/workflows/nightly.yml/badge.svg)
+[![docs-stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://seelengrab.github.io/FieldFlags.jl/stable)
+[![docs-dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://seelengrab.github.io/FieldFlags.jl/dev)
+[![codecov](https://codecov.io/github/Seelengrab/FieldFlags.jl/branch/main/graph/badge.svg?token=PBH8NJCHKS)](https://codecov.io/github/Seelengrab/FieldFlags.jl)
+
 This package provides two tiny macros to create bitfield-like objects. For example:
 
 ```julia
