@@ -7,7 +7,7 @@ on:
   push:
     branches:
       - main
-      - 'feat/*'
+      - 'feat/**'
     tags: '*'
 
 jobs:
