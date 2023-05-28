@@ -1,6 +1,7 @@
 using Documenter
-using Revise
 using FieldFlags
+
+DocMeta.setdocmeta!(FieldFlags, :DocTestSetup, :(using FieldFlags); recursive=true)
 
 makedocs(sitename = "FieldFlags.jl",
          format = Documenter.HTML(
