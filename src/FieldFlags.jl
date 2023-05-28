@@ -341,13 +341,31 @@ function bitfield(expr::Expr)
             end
         end
     )
+    # TODO: should this mask out the actual field data?
+    eqhash = :(
+        Base.:(==)(x::$T, y::$T) = getfield(x, :fields) == getfield(y, :fields);
+        Base.hash(x::$T, h::UInt) = hash(getfield(x, :fields), h)
+    )
     shows = :(
+        function Base.show(io::IO, x::$T)
+            show(io, $T)
+            write(io, '(')
+            names = propertynames(x)
+            for i in eachindex(names)
+                show(io, getproperty(x, names[i]))
+                i != lastindex(names) && write(io, ", ")
+            end
+            write(io, ')')
+        end;
         function Base.show(io::IO, m::MIME"text/plain", x::$T)
             show(io, m, $T)
             write(io, '(')
             names = propertynames(x)
             for i in eachindex(names)
-                show(io, m, getproperty(x, names[i]))
+                prop = getproperty(x, names[i])
+                write(io, names[i])
+                write(io, ": ")
+                truncshow(io, prop)
                 i != lastindex(names) && write(io, ", ")
             end
             write(io, ')')
@@ -360,12 +378,23 @@ function bitfield(expr::Expr)
         $typedefs;
         $typefuncs;
         $conv;
+        $eqhash;
         $shows;
         $propsize;
         $propoffset;
         $getprop;
         $setprop;
     )
+end
+
+truncshow(io::IO, x) = show(io, MIME"text/plain"(), x)
+function truncshow(io::IO, x::Unsigned)
+    p = @view repr(x)[3:end]
+    idx = something(findfirst(!=('0'), p), Some(lastindex(p)))
+    write(io, "0x")
+    _p = @view p[idx:end]
+    write(io, _p)
+    return nothing
 end
 
 """

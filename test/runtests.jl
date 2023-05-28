@@ -12,7 +12,42 @@ TODO: Use PropCheck.jl to generate structs for testing instead, once PropCheck.j
 
 const pos_fields = (Symbol.('a':('a'+9))...,)
 
+function test_trunc_show(io, val)
+    mark(io)
+    FieldFlags.truncshow(io, val)
+    reset(io)
+    read(io, String)
+end
+
 @testset "All Tests" begin
+@testset "truncshow" begin
+    io = IOBuffer()
+    @test test_trunc_show(io, 0x0)    == "0x0"
+    @test test_trunc_show(io, 0x1)    == "0x1"
+    @test test_trunc_show(io, 0x01)   == "0x1"
+    @test test_trunc_show(io, 0x0101) == "0x101"
+end
+
+@testset "show" for nfields in (7,8,9)
+    fields = pos_fields[1:nfields]
+    name = Symbol("struct_" * randstring(5) * string(nfields))
+    :(
+        @bitflags struct $name
+            $(fields...)
+        end
+    ) |> eval
+    args = rand(Bool, nfields)
+    obj = eval(:($name($(args...))))
+    @testset "2-arg show" begin
+        @test eval(Meta.parse(repr(obj))) == obj
+    end
+    mime_repr = repr(MIME"text/plain"(), obj)
+    @testset "text/plain" for f in eachindex(fields)
+        teststr = string(isone(f) ? "" : ", ", fields[f], ':')
+        @test occursin(teststr, mime_repr)
+    end
+end
+
 @testset "@bitflags" begin
 @testset for nfields in (7,8,9)
 @testset "mutable: $mut" for mut in (true, false)
