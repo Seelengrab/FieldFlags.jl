@@ -3,7 +3,8 @@ using FieldFlags
 
 DocMeta.setdocmeta!(FieldFlags, :DocTestSetup, :(using FieldFlags); recursive=true)
 
-makedocs(sitename = "FieldFlags.jl",
+makedocs(modules=[FieldFlags],
+         sitename = "FieldFlags.jl",
          format = Documenter.HTML(
             prettyurls = get(ENV, "CI", nothing) == "true"),
          pages = [

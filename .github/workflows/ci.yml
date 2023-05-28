@@ -64,7 +64,9 @@ jobs:
       - run: |
           julia --project=docs -e '
             using Documenter: doctest
+            using Documenter.DocMeta: setdocmeta!
             using FieldFlags
+            setdocmeta!(FieldFlags, :DocTestSetup, :(using FieldFlags); recursive=true)
             doctest(FieldFlags)'
       - run: julia --project=docs docs/make.jl
         env:
