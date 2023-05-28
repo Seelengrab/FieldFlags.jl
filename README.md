@@ -1,4 +1,4 @@
-# FlagFields.jl
+# FieldFlags.jl
 
 ![CI Stable](https://github.com/Seelengrab/FieldFlags.jl/actions/workflows/ci.yml/badge.svg)
 ![CI Nightly](https://github.com/Seelengrab/FieldFlags.jl/actions/workflows/nightly.yml/badge.svg)
