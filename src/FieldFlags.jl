@@ -457,8 +457,8 @@ julia> @bitfield struct MyBits
            c:1
        end
 
-julia> bits = Mybits(1,2,3)
-Mybits(0x0000000000000001, 0x0000000000000002, true)
+julia> bits = MyBits(1,2,3)
+MyBits(a: 0x1, b: 0x2, c: true)
 
 julia> bits.a
 0x0000000000000001
@@ -549,7 +549,7 @@ julia> @bitflags mutable struct MyFlags
        end
 
 julia> flags = MyFlags(true, false, true)
-MyFlags(true, false, true)
+MyFlags(flagA: true, flagB: false, flagC: true)
 
 julia> flags.flagA
 true
