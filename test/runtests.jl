@@ -48,6 +48,17 @@ end
     end
 end
 
+@testset "Failing convert" begin
+    struct IntWrap
+        x::Int
+    end
+    @bitfield struct ConvertTest
+        a:3
+    end
+    err = ArgumentError("Cannot convert objects of type IntWrap to objects of type ConvertTest.")
+    @test_throws err convert(ConvertTest, IntWrap(1))
+end
+
 @testset "@bitflags" begin
 @testset for nfields in (7,8,9)
 @testset "mutable: $mut" for mut in (true, false)
