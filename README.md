@@ -179,7 +179,8 @@ julia_foo_290:                          # @julia_foo_290
 ## Bitfields
 
 Apart from bitflags, which guarantee a `Bool` on property access, there's also `@bitfield`, for densely packing
-integers of various sizes into an object, which also supports setting fields:
+integers of various sizes into an object. Structs created from either `@bitfield` or `@bitflags` can also
+be marked `mutable`, to allow setting of fields:
 
 ```julia
 julia> @bitfield mutable struct Foo
@@ -214,7 +215,8 @@ true
 ```
 
 One limitation of allowing fields to be set is that the object is declared as `mutable`, which may cause allocations
-and results in the object no longer being `isbits`. This may change in the future.
+(just as with any other `mutable`, which may need to live on the heap) and results in the object no longer being
+`isbits`. This may change in the future.
 
 ## Unnamed fields
 
