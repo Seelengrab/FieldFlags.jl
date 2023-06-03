@@ -27,7 +27,7 @@ The above object can be accessed like any other struct:
 ```julia
 julia> using FieldFlags
 
-julia> @bitflags struct Foo
+julia> @bitflags mutable struct Foo
            a
            b
            c
@@ -182,7 +182,7 @@ Apart from bitflags, which guarantee a `Bool` on property access, there's also `
 integers of various sizes into an object, which also supports setting fields:
 
 ```julia
-julia> @bitfield struct Foo
+julia> @bitfield mutable struct Foo
            a:1
            b:2
            c:1
