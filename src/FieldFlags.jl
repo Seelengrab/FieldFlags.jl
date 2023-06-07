@@ -151,7 +151,6 @@ function bitfield(expr::Expr)
     end
     fieldtuple = ntuple(x -> first(fields[x]), length(fields))
     isempty(fieldtuple) && throw(ArgumentError("`@bitfields` needs at least one field."))
-    # TODO: Give a better error here, showing which fields are duplicated
     allunique(filter(!=(:_), fieldtuple)) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
 
     # `primitive type` currently requires a multiple of 8
@@ -202,7 +201,6 @@ function bitfield(expr::Expr)
     getpropexpr = origgetprop = Expr(:if)
     setpropexpr = origsetprop = Expr(:if)
     for (fieldname,fieldsize) in fields
-        # TODO: Invent some way to get an integer type of the correct bitsize without `@eval`, like Zigs' iX
         casttype = isone(fieldsize) ? Bool : UInt
 
         push!(sizeexpr.args, :(s === $(QuoteNode(fieldname))))
@@ -343,7 +341,6 @@ function bitfield(expr::Expr)
             end
         end
     )
-    # TODO: should this mask out the actual field data?
     eqhash = :(
         Base.:(==)(x::$T, y::$T) = getfield(x, :fields) == getfield(y, :fields);
         Base.hash(x::$T, h::UInt) = hash(getfield(x, :fields), h)
@@ -510,7 +507,6 @@ function bitflags(expr::Expr)
     exprfields = expr.args[3].args
     fields = identity.(filter(s -> s isa Symbol, exprfields))
     isempty(fields) && throw(ArgumentError("`@bitflags` needs at least one field."))
-    # TODO: Give a better error here, showing which fields are duplicated
     allunique(filter(!=(:_), fields)) || throw(ArgumentError("Fields need to be uniquely identifiable!"))
     # we do the heavy lifting in @bitfield, so that @bitflags is just an easier interface
     for n in eachindex(exprfields)

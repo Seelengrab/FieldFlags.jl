@@ -3,13 +3,6 @@ using FieldFlags
 using JET
 using Random
 
-#=
-Every struct created by FieldFlags is a multiple of 8 bit, so (for now) we're only going
-to test 7, 8 and 9 fields, to catch obvious off-by-one errors. That should probably
-cover multiples thereof as well, which (hopefully) is sufficient for now.
-TODO: Use PropCheck.jl to generate structs for testing instead, once PropCheck.jl has a reliable interface
-=#
-
 const pos_fields = (Symbol.('a':('a'+9))...,)
 
 function test_trunc_show(io, val)
