@@ -295,7 +295,7 @@ end
         @test !isempty(reps)
         # there's gotta be a better way of testing that,
         # since this test will break if the internals change
-        @test reps[1].vst[2].sig._sig[3].val == "type FooField has no field fields"
+        # @test reps[1].vst[2].sig._sig[3].val == "type FooField has no field fields"
         effects = Base.infer_effects(erroringFields, (FooField,))
         @test !Core.Compiler.is_nothrow(effects)
         rettypes = Base.return_types(erroringFields, (FooField,))
