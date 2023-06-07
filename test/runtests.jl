@@ -315,4 +315,25 @@ end
     end
 end
 
+@testset "DSL constraints" begin
+    @testset "Field names" begin
+        expr = :(struct Foo
+                (a,b):1
+            end)
+        @test_throws ArgumentError("Name of field is not a symbol: `(a, b)`") FieldFlags.bitfield(expr)
+    end
+    @testset "Non-literal field sizes" begin
+        expr = :(struct Foo
+                a:b
+            end)
+        @test_throws ArgumentError("Declared size of field `a` is not an integer literal!") FieldFlags.bitfield(expr)
+        @testset "Allowed field size literals" for T in Base.BitInteger_types
+            fieldsize = one(T)
+            expr = :(struct Foo
+                    a:$fieldsize
+                end)
+            @test FieldFlags.bitfield(expr) isa Expr
+        end
+    end
+end
 end # end All Tests

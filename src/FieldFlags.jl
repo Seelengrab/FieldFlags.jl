@@ -143,7 +143,9 @@ function bitfield(expr::Expr)
             && length(ex.args) == 3
             && first(ex.args) === :(:)) || continue # only Intx bitfields supported right now
         fieldname = ex.args[2]
+        fieldname isa Symbol || throw(ArgumentError("Name of field is not a symbol: `$fieldname`"))
         fieldsize = ex.args[3]
+        fieldsize isa Integer || throw(ArgumentError("Declared size of field `$fieldname` is not an integer literal!"))
         numbits += fieldsize
         push!(fields, fieldname => fieldsize)
     end
