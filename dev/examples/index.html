@@ -21,14 +21,14 @@
        @code_llvm f(field)</code><code class="nohighlight hljs ansi" style="display:block;"></code><code class="nohighlight hljs ansi" style="display:block;"></code><code class="nohighlight hljs ansi" style="display:block;"></code><code class="nohighlight hljs ansi" style="display:block;"></code><code class="nohighlight hljs ansi" style="display:block;"></code><code class="nohighlight hljs ansi" style="display:block;"><span class="sgr90">;  @ REPL[11]:1 within `f`</span>
 <span class="sgr95">define</span> <span class="sgr36">i64</span> <span class="sgr93">@julia_f_1665</span><span class="sgr33">({}</span>* <span class="sgr95">noundef</span> <span class="sgr95">nonnull</span> <span class="sgr95">align</span> <span class="sgr33">2</span> <span class="sgr95">dereferenceable</span><span class="sgr33">(2)</span> %0<span class="sgr33">)</span> #0 <span class="sgr33">{</span>
 <span class="sgr91">top:</span>
-<span class="sgr90">; ┌ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:324 within `getproperty`</span>
+<span class="sgr90">; ┌ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:322 within `getproperty`</span>
    %1 = <span class="sgr96"><span class="sgr1">bitcast</span></span> <span class="sgr33">{}</span>* %0 <span class="sgr95">to</span> <span class="sgr36">i16</span>*
    %2 = <span class="sgr96"><span class="sgr1">load</span></span> <span class="sgr36">i16</span>, <span class="sgr36">i16</span>* %1, <span class="sgr95">align</span> <span class="sgr33">2</span>
-<span class="sgr90">; │ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:226 within `getproperty`</span>
+<span class="sgr90">; │ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:224 within `getproperty`</span>
    %3 = <span class="sgr96"><span class="sgr1">lshr</span></span> <span class="sgr36">i16</span> %2, <span class="sgr33">4</span>
-<span class="sgr90">; │ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:229 within `getproperty`</span>
+<span class="sgr90">; │ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:227 within `getproperty`</span>
    %4 = <span class="sgr96"><span class="sgr1">and</span></span> <span class="sgr36">i16</span> %3, <span class="sgr33">511</span>
-<span class="sgr90">; │ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:230 within `getproperty`</span>
+<span class="sgr90">; │ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:228 within `getproperty`</span>
 <span class="sgr90">; │┌ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:84 within `cast_extend_truncate`</span>
     %5 = <span class="sgr96"><span class="sgr1">zext</span></span> <span class="sgr36">i16</span> %4 <span class="sgr95">to</span> <span class="sgr36">i64</span>
 <span class="sgr90">; └└</span>
@@ -48,7 +48,7 @@
 	.cfi_offset %rbp, <span class="sgr33">-16</span>
 	<span class="sgr96"><span class="sgr1">movq</span></span>	%rsp, %rbp
 	.cfi_def_cfa_register %rbp
-<span class="sgr90">; │┌ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:226 within `getproperty`</span>
+<span class="sgr90">; │┌ @ /home/runner/work/FieldFlags.jl/FieldFlags.jl/src/FieldFlags.jl:224 within `getproperty`</span>
 	<span class="sgr96"><span class="sgr1">movzwl</span></span>	<span class="sgr33">(</span>%rdi<span class="sgr33">)</span>, %eax
 	<span class="sgr96"><span class="sgr1">shrl</span></span>	<span class="sgr33">$4</span>, %eax
 	<span class="sgr96"><span class="sgr1">andl</span></span>	<span class="sgr33">$511</span>, %eax                      <span class="sgr90"># imm = 0x1FF</span>
@@ -61,4 +61,4 @@
 	.cfi_endproc
 <span class="sgr90">; └</span>
                                         <span class="sgr90"># -- End function</span>
-	.section	&quot;.note.GNU-stack&quot;,&quot;&quot;,@progbits</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« FieldFlags.jl Documentation</a><a class="docs-footer-nextpage" href="../api/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Wednesday 7 June 2023 07:25">Wednesday 7 June 2023</span>. Using Julia version 1.9.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+	.section	&quot;.note.GNU-stack&quot;,&quot;&quot;,@progbits</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« FieldFlags.jl Documentation</a><a class="docs-footer-nextpage" href="../api/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Wednesday 7 June 2023 07:51">Wednesday 7 June 2023</span>. Using Julia version 1.9.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
