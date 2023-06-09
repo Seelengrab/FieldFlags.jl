@@ -333,6 +333,7 @@ function bitfield(expr::Expr)
         end
     )
     conv = :(
+        Base.convert(::Type{$T}, t::$T) = t;
         function Base.convert(::Type{$T}, x::X) where X
             if !isprimitivetype(X)
                 throw(ArgumentError(LazyString("Cannot convert objects of type ", X, " to objects of type ", $T,".")))

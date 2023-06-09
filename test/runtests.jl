@@ -52,6 +52,17 @@ end
     @test_throws err convert(ConvertTest, IntWrap(1))
 end
 
+@testset "Identity convert in a wrapper struct #10" begin
+    @bitfield struct Convert_10
+        a:2
+    end
+    # the type parameter is unused, but necessary to induce the identity `convert` call
+    struct Wrapper_10{T}
+        c::Convert_10
+    end
+    @test Wrapper_10{Int}(Convert_10()) isa Wrapper_10{Int}
+end
+
 @testset "@bitflags" begin
 @testset for nfields in (7,8,9)
 @testset "mutable: $mut" for mut in (true, false)
