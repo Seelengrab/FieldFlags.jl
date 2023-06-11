@@ -107,17 +107,19 @@ Takes an `Expr(:struct)` of the form
     end
 
 where `a`, `b` are potential field names, `x`, `y`, and `z` are desired bitwidths
-for those fields, `_` is padding and returns the following expression:
+for those fields as integer literals, `_` is padding and returns the following expression:
 
-    quote
-        \$typedefs;
-        \$typefuncs;
-        \$conv;
-        \$propsize;
-        \$propoffset;
-        \$getprop;
-        \$setprop;
-    end
+    Expr(:block,
+        typedefs,
+        typefuncs,
+        conv,
+        eqhash,
+        shows,
+        propsize,
+        propoffset,
+        getprop,
+        setprop
+    )
 
 Where `typedefs` are the new user-facing type definition and the internal type definitions,
 `typefuncs` are type related functions from Base for the new types, `conv` are `convert` methods to those
@@ -131,7 +133,19 @@ See also [`FieldFlags.bitflags`](@ref).
 function bitfield(expr::Expr)
     expr.head == :struct || throw(ArgumentError("`@bitfields` needs a struct definition!"))
     mutable = expr.args[1]
-    typename = expr.args[2]
+    typedeclr = expr.args[2]
+    suptype = if typedeclr isa Symbol
+        typedeclr
+    elseif typedeclr isa Expr && typedeclr.head === :(<:)
+        Expr(:(<:), typedeclr.args[1], esc.(typedeclr.args[2:end])...)
+    else
+        throw(ArgumentError("Given supertype declaration is invalid: `$typedeclr`"))
+    end
+    typename = if suptype isa Symbol
+        suptype
+    elseif suptype isa Expr
+        suptype.args[1]
+    end
     typename_internal = Symbol(typename, :_fields)
     T = esc(typename)
     Ti = esc(typename_internal)
@@ -164,24 +178,14 @@ function bitfield(expr::Expr)
     # The primitive type is explicitly wrapped in a `mutable struct`
     # which ends up providing the `setindex!` interface, if the
     # requested struct is declared `mutable` as well
+    internal_constructor = Expr(:(=), Expr(:call, typename, Expr(:(::), :t, Ti)), Expr(:new, T, :t))
     newob = Expr(:new, T, Expr(:call, :cast_or_extend, Ti, 0x0))
-    mutstruct = if mutable
-        :(mutable struct $T
-            fields::$Ti
-            $T(t::$Ti) = new(t)
-            $T() = $newob
-        end)
-    else
-        :(struct $T
-            fields::$Ti
-            $T(t::$Ti) = new(t)
-            $T() = $newob
-        end)
-    end
-    typedefs = :(
-        primitive type $typename_internal $typesize end;
-        $mutstruct
-    )
+    zero_arg_constr = Expr(:(=),
+                            Expr(:call, typename),
+                            newob)
+    struct_body = Expr(:block, Expr(:(::), :fields, Ti), internal_constructor, zero_arg_constr)
+    mutstruct = Expr(:struct, mutable, suptype, struct_body)
+    typedefs = Expr(:block, :(primitive type $typename_internal $typesize end), mutstruct)
 
     # make the properties accessible
     filterednames = filter(!=(:_), fieldtuple)
@@ -305,7 +309,7 @@ function bitfield(expr::Expr)
     call = Expr(:call, callargs...)
     block = Expr(:block, bodyargs...)
     constr = Expr(:function, call, block)
-    push!(mutstruct.args[3].args, constr)
+    push!(struct_body.args, constr)
 
     propsize = :(
         function FieldFlags.fieldsize(_::Type{$T}, s::Symbol)
@@ -374,16 +378,16 @@ function bitfield(expr::Expr)
 
     ###
 
-    return :(
-        $typedefs;
-        $typefuncs;
-        $conv;
-        $eqhash;
-        $shows;
-        $propsize;
-        $propoffset;
-        $getprop;
-        $setprop;
+    return Expr(:block,
+        typedefs,
+        typefuncs,
+        conv,
+        eqhash,
+        shows,
+        propsize,
+        propoffset,
+        getprop,
+        setprop
     )
 end
 

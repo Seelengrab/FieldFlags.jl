@@ -60,30 +60,43 @@ end
     struct Wrapper_10{T}
         c::Convert_10
     end
-    @test Wrapper_10{Int}(Convert_10()) isa Wrapper_10{Int}
+    obj = Convert_10()
+    @test Wrapper_10{Int}(obj) isa Wrapper_10{Int}
 end
+
+@testset "Subtyping" begin
+    abstract type AbstractSupertype end
+    @bitfield struct Concrete <: AbstractSupertype
+        a:2
+    end
+    f(as::AbstractSupertype) = iseven(as.a)
+    @test f(Concrete(2))
+end
+
+abstract type TestAbstract end
 
 @testset "@bitflags" begin
 @testset for nfields in (7,8,9)
+@testset for sup in (true, false)
 @testset "mutable: $mut" for mut in (true, false)
     fields = pos_fields[1:nfields]
-    name = Symbol("struct_" * randstring(5) * string(nfields) * "_$mut")
-    if mut
-        :(
-            @bitflags mutable struct $name
-                $(fields...)
-            end
-        ) |> eval
+    name = Symbol("struct_" * randstring(5) * string(nfields) * "_$(mut)_$sup")
+    if sup
+        supexpr = :($name <: TestAbstract)
+        structexpr = Expr(:struct, mut, supexpr, Expr(:block, fields...))
     else
-        :(
-            @bitflags struct $name
-                $(fields...)
-            end
-        ) |> eval
+        structexpr = Expr(:struct, mut, name, Expr(:block, fields...))
+    end
+    eval(:(@bitflags $structexpr))
+    T = eval(name)
+    @test if sup
+        supertype(T) === TestAbstract
+    else
+        supertype(T) === Any
     end
 
     args = rand(Bool, nfields)
-    obj = eval(:($name($(args...))))
+    obj = T(args...)
     @test sizeof(obj) == ceil(Int, nfields/8)
     # these two should always pass/fail together
     @test !hasproperty(obj, :dummy)
@@ -102,6 +115,7 @@ end
     end
 end
 end
+end # nfields
 @testset "Empty bits" begin
     :(
         @bitflags struct EmptyFields
@@ -143,21 +157,24 @@ end # end @bitflags
 end
 
 @testset "mutable: $mut" for mut in (true, false)
+@testset for sup in (true, false)
 @testset for nfields in (7,8,9)
     fields = [ :($p:$n) for (n,p) in zip(shuffle(rand(2:4, nfields)), pos_fields[1:nfields]) ]
-    name = Symbol("struct_" * randstring(5) * string(nfields) * '_' * string(mut))
-    str = if mut
-        :(@bitfield mutable struct $name
-              $(fields...)
-          end)
+    name = Symbol("struct_" * randstring(5) * string(nfields) * '_' * string(mut)* '_' * string(sup))
+    if sup
+        supexpr = :($name <: TestAbstract)
+        structexpr = Expr(:struct, mut, supexpr, Expr(:block, fields...))
     else
-        :(@bitfield struct $name
-              $(fields...)
-          end)
+        structexpr = Expr(:struct, mut, name, Expr(:block, fields...))
     end
-    eval(str)
+    eval(:(@bitfield $structexpr))
     args = rand(Bool, nfields)
     T = eval(:($name))
+    @test if sup
+        supertype(T) === TestAbstract
+    else
+        supertype(T) === Any
+    end
     obj = T(args...)
     sumfields = sum(x -> x.args[3], fields)
     @test sizeof(getfield(obj, :fields)) == div(sumfields, 8, RoundUp)
@@ -186,6 +203,7 @@ end
         end
     end
 end # dense bitfields
+end # supertype
 
 @testset "Empty fields" begin
     name = Symbol("EmptyBitFields_" * string(mut))
