@@ -100,7 +100,7 @@ The only difference is that we are now able to set individual fields in an objec
 ```@repl mutableFlags
 mutf = MutableFlags(false, false, false)
 mutf.a == false
-muf.a = true
+mutf.a = true
 mutf.a == true
 ```
 
@@ -121,6 +121,7 @@ mf.flagA = true
 On top of mutability, we can also specify an abstract supertype as usual:
 
 ```@repl supertypes
+using FieldFlags
 abstract type MyAbstract end
 @bitflags struct MyConcrete <: MyAbstract
     foo
