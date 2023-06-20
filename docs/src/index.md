@@ -34,12 +34,9 @@ Depth=3
 
 ## Planned Features
 
- * Subtyping relationships to existing abstract types
-    * To be able to define dispatches
  * Custom field type annotations
     * This would look like a regular field type annotation for exact sizes (i.e. `a::UInt16`), or like e.g. `a:3::UInt16` for objects that want to store the lower 3 bits of an `UInt16` and want to get that type back out when accessing the field.
     * Due to the nature of how these objects are stored internally, the types will need to be at least `isbitstype`, possibly even `isprimitivetype`, as it's unclear whether the padding potentially contained in an `isbitstype` is legal to observe (I suspect it isn't).
     * `<: Signed` types will need to be at least 2 bits in size, to store the sign bit. 
  * Narrower field types
     * Currently, all field accesses (unless accessing a single bit field) return an `UInt`. This is not guaranteed, and may be narrowed in the future, such that a field annotated with width `2` returns an `UInt8` by default, width `9` an `UInt16` etc.
-
