@@ -152,6 +152,12 @@ function bitfield(expr::Expr)
     fields = Pair{Symbol, Int}[]
     numbits = 0 # aggregate number of bits of all fields
     for ex in expr.args[3].args
+        # special case single padding
+        if ex === :_
+            numbits += 1
+            push!(fields, :_ => 1)
+            continue
+        end
         !(ex isa Expr) && continue
         (ex.head == :call
             && length(ex.args) == 3

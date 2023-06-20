@@ -251,6 +251,16 @@ end # supertype
     end
 end # empty fields
 end # mutability
+
+@testset "Implicit single padding bit" begin
+    @bitfield struct ImplicitPaddingBitsize
+        a:2
+        _
+        b:4
+    end
+    @test FieldFlags.propertyoffset(ImplicitPaddingBitsize, :a) == 0
+    @test FieldFlags.propertyoffset(ImplicitPaddingBitsize, :b) == 2+1 # size of a + 1 from padding
+end
 end # end @bitfields
 
 @testset "Propertyaccess to internal field" begin
