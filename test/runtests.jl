@@ -141,6 +141,16 @@ end # nfields
         @test getproperty(obj, fields[f]) == args[f]
     end
 end
+
+@testset "No per-field bitwidths" begin
+    argerr = ArgumentError("`@bitflags` doesn't take per-field bitwidths!")
+    @test_throws argerr FieldFlags.bitflags(:(
+        struct PerFieldBitwidths
+            a:2
+            _
+            b
+        end))
+end
 end # end @bitflags
 
 @testset "@bitfields" begin

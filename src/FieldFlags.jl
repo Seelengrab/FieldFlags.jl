@@ -522,6 +522,7 @@ function bitflags(expr::Expr)
     # we do the heavy lifting in @bitfield, so that @bitflags is just an easier interface
     for n in eachindex(exprfields)
         arg = exprfields[n]
+        arg isa Expr && arg.head == :call && first(arg.args) == :(:) && throw(ArgumentError("`@bitflags` doesn't take per-field bitwidths!"))
         arg isa Symbol || continue
         exprfields[n] = Expr(:call, :(:), arg, 1)
     end
