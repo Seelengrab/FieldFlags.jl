@@ -185,7 +185,7 @@ function bitfield(expr::Expr)
     # which ends up providing the `setindex!` interface, if the
     # requested struct is declared `mutable` as well
     internal_constructor = Expr(:(=), Expr(:call, typename, Expr(:(::), :t, Ti)), Expr(:new, T, :t))
-    newob = Expr(:new, T, Expr(:call, :cast_or_extend, Ti, 0x0))
+    newob = Expr(:new, T, :(FieldFlags.cast_or_extend($Ti, 0x0)))
     zero_arg_constr = Expr(:(=),
                             Expr(:call, typename),
                             newob)
@@ -230,12 +230,12 @@ function bitfield(expr::Expr)
 
         push!(getpropexpr.args, :(s === $(QuoteNode(fieldname))))
         ifbody = :(
-            offsetshift = cast_extend_truncate($Ti, propertyoffset($T, s));
+            offsetshift = FieldFlags.cast_extend_truncate($Ti, FieldFlags.propertyoffset($T, s));
             shifted = Core.Intrinsics.lshr_int(data, offsetshift);
-            maskshift = cast_extend_truncate($Ti, fieldsize($T, s));
+            maskshift = FieldFlags.cast_extend_truncate($Ti, FieldFlags.fieldsize($T, s));
             mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, maskshift));
             masked = Core.Intrinsics.and_int(shifted, mask);
-            return cast_extend_truncate($casttype, masked);
+            return FieldFlags.cast_extend_truncate($casttype, masked);
         )
         push!(getpropexpr.args, ifbody)
         ngetprop = Expr(:elseif)
@@ -246,10 +246,10 @@ function bitfield(expr::Expr)
         if mutable
             push!(setpropexpr.args, :(s === $(QuoteNode(fieldname))))
             ifbody = :(
-                offsetshift = cast_extend_truncate($Ti, propertyoffset($T, s));
+                offsetshift = FieldFlags.cast_extend_truncate($Ti, propertyoffset($T, s));
                 shifted = Core.Intrinsics.shl_int(val, offsetshift);
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, fieldsize($T, s)));
-                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, propertyoffset($T, s)));
+                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, FieldFlags.fieldsize($T, s)));
+                mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, FieldFlags.propertyoffset($T, s)));
                 cleareddata = Core.Intrinsics.and_int(getfield(x, :fields), mask);
                 newdata = Core.Intrinsics.or_int(cleareddata, shifted);
                 setfield!(x, :fields, newdata);
@@ -268,9 +268,9 @@ function bitfield(expr::Expr)
         mask_f = Symbol(fieldname, :_mask)
         body = :(
             # shift argument into the correct field position
-            $mask_f = $fieldname & ~((~zero($fieldname)) << fieldsize($T, $(QuoteNode(fieldname))));
-            $cast_f = cast_extend_truncate($Ti, $mask_f);
-            $shift_f = cast_extend_truncate($Ti, propertyoffset($T, $(QuoteNode(fieldname))));
+            $mask_f = $fieldname & ~((~zero($fieldname)) << FieldFlags.fieldsize($T, $(QuoteNode(fieldname))));
+            $cast_f = FieldFlags.cast_extend_truncate($Ti, $mask_f);
+            $shift_f = FieldFlags.cast_extend_truncate($Ti, FieldFlags.propertyoffset($T, $(QuoteNode(fieldname))));
             $cast_f = Core.Intrinsics.shl_int($cast_f, $shift_f);
             # `or` it into the result
             ret = Core.Intrinsics.or_int(ret, $cast_f)
@@ -330,15 +330,15 @@ function bitfield(expr::Expr)
     getprop = :(
         function Base.getproperty(x::$T, s::Symbol)
             data = getfield(x, :fields)
-            maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
+            maskbase = Core.Intrinsics.not_int(FieldFlags.cast_or_extend($Ti, 0x0))
             $origgetprop
         end
     )
     setprop = :(
         function Base.setproperty!(x::$T, s::Symbol, v::W) where W
-            maskbase = Core.Intrinsics.not_int(cast_or_extend($Ti, 0x0))
-            maskeddata = v & ~(~zero(W) << fieldsize($T, s))
-            val = cast_extend_truncate($Ti, maskeddata)
+            maskbase = Core.Intrinsics.not_int(FieldFlags.cast_or_extend($Ti, 0x0))
+            maskeddata = v & ~(~zero(W) << FieldFlags.fieldsize($T, s))
+            val = FieldFlags.cast_extend_truncate($Ti, maskeddata)
             $origsetprop
         end
     )
@@ -348,7 +348,7 @@ function bitfield(expr::Expr)
             if !isprimitivetype(X)
                 throw(ArgumentError(LazyString("Cannot convert objects of type ", X, " to objects of type ", $T,".")))
             else
-                $T(cast_extend_truncate($Ti, x))
+                $T(FieldFlags.cast_extend_truncate($Ti, x))
             end
         end
     )
@@ -375,7 +375,7 @@ function bitfield(expr::Expr)
                 prop = getproperty(x, names[i])
                 write(io, names[i])
                 write(io, ": ")
-                truncshow(io, prop)
+                FieldFlags.truncshow(io, prop)
                 i != lastindex(names) && write(io, ", ")
             end
             write(io, ')')
