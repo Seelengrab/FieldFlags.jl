@@ -204,7 +204,7 @@ function bitfield(expr::Expr)
     callargs = Any[T]
     bodyargs = Any[]
     # initialize return value of constructor
-    push!(bodyargs, :(ret = cast_or_extend($Ti, 0x0)))
+    push!(bodyargs, :(ret = FieldFlags.cast_or_extend($Ti, 0x0)))
     running_offset = 0
     sizeexpr = origsize = Expr(:if)
     offsetexpr = origoffset = Expr(:if)
@@ -246,7 +246,7 @@ function bitfield(expr::Expr)
         if mutable
             push!(setpropexpr.args, :(s === $(QuoteNode(fieldname))))
             ifbody = :(
-                offsetshift = FieldFlags.cast_extend_truncate($Ti, propertyoffset($T, s));
+                offsetshift = FieldFlags.cast_extend_truncate($Ti, FieldFlags.propertyoffset($T, s));
                 shifted = Core.Intrinsics.shl_int(val, offsetshift);
                 mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(maskbase, FieldFlags.fieldsize($T, s)));
                 mask = Core.Intrinsics.not_int(Core.Intrinsics.shl_int(mask, FieldFlags.propertyoffset($T, s)));
