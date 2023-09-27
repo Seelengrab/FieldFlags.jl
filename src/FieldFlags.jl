@@ -49,6 +49,28 @@ julia> FieldFlags.fieldsize(MyBits, :b)
 function fieldsize end
 
 """
+    bitfieldnames(::Type{T}) -> NTuple{N, Symbol}
+    bitfieldnames(::T) -> NTuple{N, Symbol}
+
+Gives the field names of the given bitfield object or type.
+
+```jldoctest
+julia> @bitfield mutable struct MyBits
+           a:2
+           _ # padding
+           b:3
+       end
+
+julia> FieldFlags.bitfieldnames(MyBits)
+(:a, :b)
+
+julia> FieldFlags.bitfieldnames(MyBits(1,2))
+(:a, :b)
+```
+"""
+function bitfieldnames end
+
+"""
     cast_or_extend(T::DataType, x) -> T
 
 Takes an object `x` of a primitive type and either bitcasts it to `T`
@@ -196,7 +218,10 @@ function bitfield(expr::Expr)
     # make the properties accessible
     filterednames = filter(!=(:_), fieldtuple)
     typefuncs = :(
-        Base.propertynames(::$T) = $filterednames
+        FieldFlags.bitfieldnames(::$T) = $filterednames;
+        FieldFlags.bitfieldnames(::Type{$T}) = $filterednames;
+        Base.propertynames(::$T) = FieldFlags.bitfieldnames($T);
+        Base.zero(::Type{$T}) = $T(FieldFlags.cast_or_extend($Ti, 0x0))
     )
 
     # prepare our `getproperty` overload
@@ -211,7 +236,19 @@ function bitfield(expr::Expr)
     getpropexpr = origgetprop = Expr(:if)
     setpropexpr = origsetprop = Expr(:if)
     for (fieldname,fieldsize) in fields
-        casttype = isone(fieldsize) ? Bool : UInt
+        casttype = if isone(fieldsize)
+            Bool
+        elseif 2 <= fieldsize <= 8
+            UInt8
+        elseif 9 <= fieldsize <= 16
+            UInt16
+        elseif 17 <= fieldsize <= 32
+            UInt32
+        elseif 33 <= fieldsize <= 64
+            UInt64
+        else
+            UInt128
+        end
 
         push!(sizeexpr.args, :(s === $(QuoteNode(fieldname))))
         push!(sizeexpr.args, :(return $fieldsize))
