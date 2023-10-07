@@ -208,10 +208,7 @@ function bitfield(expr::Expr)
     # requested struct is declared `mutable` as well
     internal_constructor = Expr(:(=), Expr(:call, typename, Expr(:(::), :t, Ti)), Expr(:new, T, :t))
     newob = Expr(:new, T, :(FieldFlags.cast_or_extend($Ti, 0x0)))
-    zero_arg_constr = Expr(:(=),
-                            Expr(:call, typename),
-                            newob)
-    struct_body = Expr(:block, Expr(:(::), :fields, Ti), internal_constructor, zero_arg_constr)
+    struct_body = Expr(:block, Expr(:(::), :fields, Ti), internal_constructor)
     mutstruct = Expr(:struct, mutable, suptype, struct_body)
     typedefs = Expr(:block, :(primitive type $typename_internal $typesize end), mutstruct)
 

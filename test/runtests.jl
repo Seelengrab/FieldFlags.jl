@@ -60,7 +60,7 @@ end
     struct Wrapper_10{T}
         c::Convert_10
     end
-    obj = Convert_10()
+    obj = zero(Convert_10)
     @test Wrapper_10{Int}(obj) isa Wrapper_10{Int}
 end
 
