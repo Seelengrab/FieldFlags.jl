@@ -505,10 +505,10 @@ julia> bits = MyBits(1,2,3)
 MyBits(a: 0x1, b: 0x2, c: true)
 
 julia> bits.a
-0x0000000000000001
+0x01
 
 julia> bits.b
-0x0000000000000002
+0x02
 
 julia> bits.c
 true
