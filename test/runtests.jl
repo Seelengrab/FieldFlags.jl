@@ -387,4 +387,22 @@ end
         end
     end
 end
+
+@testset "UInt fields by fieldwise bitsize" begin
+    @bitfield struct FieldBitsTest
+        a:1
+        b:2
+        c:9
+        d:17
+        e:33
+        f:65
+    end
+    obj = zero(FieldBitsTest)
+    @test obj.a isa Bool
+    @test obj.b isa UInt8
+    @test obj.c isa UInt16
+    @test obj.d isa UInt32
+    @test obj.e isa UInt64
+    @test obj.f isa UInt128
+end
 end # end All Tests
