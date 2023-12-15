@@ -41,6 +41,15 @@ end
     end
 end
 
+primitive type CastTest 16 end
+@testset "cast_extend_truncate" begin
+    @test FieldFlags.cast_extend_truncate(UInt16, 0xFF) === 0x00FF
+    @test FieldFlags.cast_extend_truncate(UInt8, 0xFFF) === 0xFF
+    @test FieldFlags.cast_extend_truncate(CastTest, 0xFF) === reinterpret(CastTest, 0x00FF)
+    @test FieldFlags.cast_extend_truncate(CastTest, 0x00FF) === reinterpret(CastTest, 0x00FF)
+    @test FieldFlags.cast_extend_truncate(CastTest, 0xFFFFFF) === reinterpret(CastTest, 0xFFFF)
+end
+
 @testset "Failing convert" begin
     struct IntWrap
         x::Int
