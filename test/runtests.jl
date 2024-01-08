@@ -327,7 +327,12 @@ end
             @test isempty(JET.get_reports(res))
         end
         effects = Base.infer_effects(foldableAccess, (JETStruct,))
-        @test Core.Compiler.is_foldable(effects)
+        @static if VERSION >= v"1.10"
+            # see https://github.com/JuliaLang/julia/issues/49978 for why this is needed...
+            @test_broken Core.Compiler.is_foldable(effects)
+        else
+            @test Core.Compiler.is_foldable(effects)
+        end
         @inferred Bool foldableAccess(JETStruct(true, false))
     end
     @testset "erroringAccess" begin
@@ -361,7 +366,12 @@ end
             @test isempty(JET.get_reports(res))
         end
         effects = Base.infer_effects(foldableFields, (FieldsField,))
-        @test Core.Compiler.is_foldable(effects)
+        @static if VERSION >= v"1.10"
+            # see https://github.com/JuliaLang/julia/issues/49978 for why this is needed...
+            @test_broken Core.Compiler.is_foldable(effects)
+        else
+            @test Core.Compiler.is_foldable(effects)
+        end
         @inferred Bool foldableFields(FieldsField(true))
     end
 end
@@ -405,4 +415,5 @@ end
     @test obj.e isa UInt64
     @test obj.f isa UInt128
 end
+
 end # end All Tests
