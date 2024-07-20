@@ -36,12 +36,18 @@ That is, an instance of `MyFlags` has these bits:
 
 With the 4 bits higher than `flagC` being implicit padding as well.
 
-`@bitflags` gives us two default constructors; a zero-arg constructor as well as an `n`-arg constructor.
+`@bitflags` gives us an `n`-arg constructor by default, one argument per field:
 
-The zero-arg constructor allows us to construct an instance of `MyFlags` with all fields set to `false`:
 
 ```@repl basicBitflags
-mf = MyFlags()
+init_flags = MyFlags(1,2,3)
+init_flags.flagA === 1
+```
+
+Sometimes it's convenient to zero-initialize the object; this can be done with `zero`:
+
+```@repl basicBitflags
+mf = zero(MyFlags)
 mf.flagA == mf.flagB == mf.flagC == false
 ```
 
@@ -94,6 +100,8 @@ The available constructors are also once again the same:
 ```@repl mutableFlags
 methods(MutableFlags)
 ```
+
+(The second constructor, taking a `MutableFlags_fields` object, is considered internal and not API.)
 
 The only difference is that we are now able to set individual fields in an object:
 

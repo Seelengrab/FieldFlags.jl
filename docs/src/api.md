@@ -19,6 +19,7 @@ and property related functions.
 ```@docs
 FieldFlags.propertyoffset
 FieldFlags.fieldsize
+FieldFlags.bitfieldnames
 ```
 
 ### Additional Supported API

@@ -487,10 +487,7 @@ This truncation also occurs when writing to a field of a mutable object.
 
 !!! warning "Field type"
     As there are no variable sized integers in Julia, it is only guaranteed that the return type
-    on field access is large enough to hold all bits required by that field. While currently
-    field sizes larger than `1` return an `UInt`, this is in particular not guaranteed and
-    may be changed in the future, so that e.g. a field of size `2` returns an `UInt8` instead.
-
+    on field access is large enough to hold all bits required by that field.
 # Examples
 
 ```jldoctest
